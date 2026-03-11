@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from auto_card.battle import (
     apply_damage,
     heal_combatant,
@@ -197,3 +199,42 @@ def test_simulate_battle_is_reproducible_for_same_seed() -> None:
     second = simulate_battle("bruiser", seed=0)
 
     assert first == second
+
+
+def test_run_battle_accepts_custom_starting_hp() -> None:
+    enemy = make_enemy(
+        enemy_id="training_dummy",
+        name="Training Dummy",
+        max_hp=6,
+        attack_value=0,
+    )
+
+    result = run_battle(
+        deck_ids=["strike"],
+        enemy_definition=enemy,
+        seed=0,
+        player_start_hp=17,
+        enemy_action_picker=constant_action("attack"),
+        shuffle_deck=False,
+    )
+
+    assert result.log_lines[0] == "Battle start: Player 17/50 HP vs Training Dummy 6/6 HP"
+
+
+def test_run_battle_rejects_invalid_starting_hp() -> None:
+    enemy = make_enemy(
+        enemy_id="training_dummy",
+        name="Training Dummy",
+        max_hp=6,
+        attack_value=0,
+    )
+
+    with pytest.raises(ValueError, match="Player starting HP must be between 1 and 50"):
+        run_battle(
+            deck_ids=["strike"],
+            enemy_definition=enemy,
+            seed=0,
+            player_start_hp=0,
+            enemy_action_picker=constant_action("attack"),
+            shuffle_deck=False,
+        )

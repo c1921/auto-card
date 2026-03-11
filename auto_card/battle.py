@@ -67,17 +67,19 @@ def run_battle(
     deck_ids: Sequence[str],
     enemy_definition: EnemyDefinition,
     seed: int,
+    player_start_hp: int = PLAYER_STARTING_HP,
     enemy_action_picker: EnemyActionPicker | None = None,
     max_turns: int = MAX_BATTLE_TURNS,
     shuffle_deck: bool = True,
 ) -> BattleResult:
     _validate_deck(deck_ids)
+    _validate_player_start_hp(player_start_hp)
 
     rng = random.Random(seed)
     player = Combatant(
         name=PLAYER_NAME,
         max_hp=PLAYER_MAX_HP,
-        hp=PLAYER_STARTING_HP,
+        hp=player_start_hp,
         armor=PLAYER_STARTING_ARMOR,
     )
     enemy = Combatant(
@@ -399,3 +401,11 @@ def _validate_deck(deck_ids: Sequence[str]) -> None:
     if missing:
         missing_text = ", ".join(missing)
         raise ValueError(f"Unknown card ids in deck: {missing_text}")
+
+
+def _validate_player_start_hp(player_start_hp: int) -> None:
+    if not 1 <= player_start_hp <= PLAYER_MAX_HP:
+        raise ValueError(
+            f"Player starting HP must be between 1 and {PLAYER_MAX_HP}, "
+            f"got {player_start_hp}."
+        )

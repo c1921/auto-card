@@ -5,6 +5,7 @@ from typing import Literal
 
 BattleOutcome = Literal["victory", "defeat"]
 EnemyActionKind = Literal["attack", "defend", "heal"]
+RunBattleType = Literal["normal", "boss"]
 
 
 @dataclass(frozen=True)
@@ -65,3 +66,26 @@ class BattleResult:
     log_lines: tuple[str, ...]
     seed: int
     enemy_id: str
+
+
+@dataclass(frozen=True)
+class RunBattleRecord:
+    battle_number: int
+    battle_type: RunBattleType
+    enemy_id: str
+    deck_ids: tuple[str, ...]
+    battle_seed: int
+    result: BattleResult
+    reward_options: tuple[str, ...] = ()
+    reward_choice: str | None = None
+
+
+@dataclass(frozen=True)
+class RunResult:
+    outcome: BattleOutcome
+    final_battle_number: int
+    final_hp: int
+    final_collection: tuple[str, ...]
+    battles: tuple[RunBattleRecord, ...]
+    log_lines: tuple[str, ...]
+    seed: int

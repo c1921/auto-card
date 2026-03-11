@@ -6,6 +6,9 @@ PLAYER_NAME = "Player"
 PLAYER_MAX_HP = 50
 PLAYER_STARTING_HP = 50
 PLAYER_STARTING_ARMOR = 0
+RUN_DECK_SIZE = 10
+NORMAL_BATTLE_COUNT = 5
+TOTAL_BATTLE_COUNT = 6
 
 CARDS: dict[str, CardDefinition] = {
     "strike": CardDefinition(
@@ -47,6 +50,21 @@ CARDS: dict[str, CardDefinition] = {
     ),
 }
 
+STARTING_COLLECTION: list[str] = [
+    "strike",
+    "strike",
+    "strike",
+    "strike",
+    "defend",
+    "defend",
+    "defend",
+    "heavy_strike",
+    "heavy_strike",
+    "fortify",
+    "recover",
+    "drain_slash",
+]
+
 TEST_DECK: list[str] = [
     "strike",
     "strike",
@@ -59,6 +77,9 @@ TEST_DECK: list[str] = [
     "fortify",
     "recover",
 ]
+
+NORMAL_ENEMY_IDS: tuple[str, ...] = ("bruiser", "guard", "priest")
+REWARD_CARD_IDS: tuple[str, ...] = tuple(CARDS)
 
 ENEMIES: dict[str, EnemyDefinition] = {
     "bruiser": EnemyDefinition(
@@ -92,6 +113,17 @@ ENEMIES: dict[str, EnemyDefinition] = {
         heal_weight=50,
         attack_value=4,
         defend_value=4,
+        heal_value=4,
+    ),
+    "boss": EnemyDefinition(
+        id="boss",
+        name="Boss",
+        max_hp=72,
+        attack_weight=40,
+        defend_weight=30,
+        heal_weight=30,
+        attack_value=8,
+        defend_value=6,
         heal_value=4,
     ),
 }
