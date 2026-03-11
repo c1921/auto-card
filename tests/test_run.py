@@ -4,7 +4,13 @@ from collections.abc import Sequence
 
 import pytest
 
-from auto_card.run import RunSession, play_run, validate_deck_choice
+from auto_card.run import (
+    RunSession,
+    canonicalize_card_ids,
+    format_card_counts,
+    play_run,
+    validate_deck_choice,
+)
 
 BASE_DECK = (
     "strike",
@@ -82,6 +88,21 @@ def test_validate_deck_choice_requires_exact_size_and_owned_counts() -> None:
             ),
             collection=BASE_DECK,
         )
+
+
+def test_card_order_is_explicit_for_canonicalization_and_formatting() -> None:
+    card_ids = ("recover", "strike", "fortify", "strike", "drain_slash")
+
+    assert canonicalize_card_ids(card_ids) == (
+        "strike",
+        "strike",
+        "drain_slash",
+        "fortify",
+        "recover",
+    )
+    assert format_card_counts(card_ids) == (
+        "Strike x2, Drain Slash x1, Fortify x1, Recover x1"
+    )
 
 
 def test_run_reaches_boss_after_five_normal_battles() -> None:

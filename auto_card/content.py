@@ -9,6 +9,17 @@ PLAYER_STARTING_ARMOR = 0
 RUN_DECK_SIZE = 10
 NORMAL_BATTLE_COUNT = 5
 TOTAL_BATTLE_COUNT = 6
+CARD_ORDER: tuple[str, ...] = (
+    "strike",
+    "heavy_strike",
+    "drain_slash",
+    "defend",
+    "fortify",
+    "recover",
+)
+CARD_ORDER_INDEX: dict[str, int] = {
+    card_id: index for index, card_id in enumerate(CARD_ORDER)
+}
 
 CARDS: dict[str, CardDefinition] = {
     "strike": CardDefinition(
@@ -79,7 +90,7 @@ TEST_DECK: list[str] = [
 ]
 
 NORMAL_ENEMY_IDS: tuple[str, ...] = ("bruiser", "guard", "priest")
-REWARD_CARD_IDS: tuple[str, ...] = tuple(CARDS)
+REWARD_CARD_IDS: tuple[str, ...] = CARD_ORDER
 
 ENEMIES: dict[str, EnemyDefinition] = {
     "bruiser": EnemyDefinition(

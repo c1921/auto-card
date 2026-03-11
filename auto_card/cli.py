@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from auto_card.battle import simulate_battle
-from auto_card.content import CARDS, ENEMIES, RUN_DECK_SIZE
+from auto_card.content import CARD_ORDER, CARDS, ENEMIES, RUN_DECK_SIZE
 from auto_card.run import (
     DeckChoiceRequest,
     RewardChoiceRequest,
@@ -262,6 +262,6 @@ def _format_collection_lines(collection: Sequence[str]) -> list[str]:
     counts = Counter(collection)
     return [
         f"{card_id}: {CARDS[card_id].name} x{counts[card_id]}"
-        for card_id in CARDS
+        for card_id in CARD_ORDER
         if counts.get(card_id, 0)
     ]

@@ -8,27 +8,32 @@ from dataclasses import dataclass
 from auto_card.battle import run_battle_replay
 from auto_card.content import (
     CARDS,
-    NORMAL_ENEMY_IDS,
     PLAYER_MAX_HP,
     PLAYER_STARTING_HP,
     REWARD_CARD_IDS,
     RUN_DECK_SIZE,
     STARTING_COLLECTION,
     TOTAL_BATTLE_COUNT,
-    get_enemy_definition,
 )
 from auto_card.models import (
     BattleReplay,
     EnemyDefinition,
-    RunBattleRecord,
     RunBattleType,
     RunPhase,
     RunResult,
 )
+from auto_card.run_support import (
+    LogEmitter,
+    build_battle_record,
+    canonicalize_card_ids as _canonicalize_card_ids,
+    choose_enemy as _choose_enemy,
+    format_card_counts as _format_card_counts,
+    format_card_list as _format_card_list,
+    record_line as _record_line,
+)
 
 DeckChooser = Callable[["DeckChoiceRequest"], Sequence[str]]
 RewardChooser = Callable[["RewardChoiceRequest"], str]
-LogEmitter = Callable[[str], None]
 
 
 @dataclass(frozen=True)
@@ -64,7 +69,7 @@ class RunSession:
         self._log_emitter = log_emitter
         self._current_hp = PLAYER_STARTING_HP
         self._collection = list(STARTING_COLLECTION)
-        self._battle_records: list[RunBattleRecord] = []
+        self._battle_records = []
         self._log_lines: list[str] = []
         self._phase: RunPhase = "deck_choice"
         self._battle_number = 1
@@ -197,48 +202,22 @@ class RunSession:
         self._current_hp = replay.result.player.hp
 
         if replay.result.outcome == "defeat":
-            self._battle_records.append(
-                RunBattleRecord(
-                    battle_number=self._battle_number,
-                    battle_type=self._current_battle_type,
-                    enemy_id=self.current_enemy.id,
-                    deck_ids=self._current_deck_ids,
-                    battle_seed=self._current_battle_seed,
-                    result=replay.result,
-                )
-            )
+            self._append_current_battle_record()
             self._record_line("")
             self._record_line(
                 f"Run result: Defeat on battle {self._battle_number}."
             )
-            self._phase = "finished"
-            self._outcome = "defeat"
-            self._final_battle_number = self._battle_number
+            self._finish_run(outcome="defeat")
             return
 
         if self._current_battle_type == "boss":
-            self._battle_records.append(
-                RunBattleRecord(
-                    battle_number=self._battle_number,
-                    battle_type=self._current_battle_type,
-                    enemy_id=self.current_enemy.id,
-                    deck_ids=self._current_deck_ids,
-                    battle_seed=self._current_battle_seed,
-                    result=replay.result,
-                )
-            )
+            self._append_current_battle_record()
             self._record_line("")
             self._record_line("Run result: Victory.")
-            self._phase = "finished"
-            self._outcome = "victory"
-            self._final_battle_number = self._battle_number
+            self._finish_run(outcome="victory")
             return
 
-        reward_options = tuple(self._rng.sample(REWARD_CARD_IDS, k=3))
-        self._current_reward_options = reward_options
-        self._reward_collection_view = canonicalize_card_ids(self._collection)
-        self._record_line(f"Reward options: {format_card_list(reward_options)}")
-        self._phase = "reward_choice"
+        self._enter_reward_choice()
 
     def get_reward_choice_request(self) -> RewardChoiceRequest:
         if self._phase != "reward_choice":
@@ -272,17 +251,9 @@ class RunSession:
             f"Collection now: {format_card_counts(self._collection)}"
         )
 
-        self._battle_records.append(
-            RunBattleRecord(
-                battle_number=self._battle_number,
-                battle_type=self._current_battle_type,
-                enemy_id=self.current_enemy.id,
-                deck_ids=self._current_deck_ids,
-                battle_seed=self._current_battle_seed,
-                result=self.current_battle_replay.result,
-                reward_options=self._current_reward_options,
-                reward_choice=validated_reward,
-            )
+        self._append_current_battle_record(
+            reward_options=self._current_reward_options,
+            reward_choice=validated_reward,
         )
 
         self._battle_number += 1
@@ -305,6 +276,37 @@ class RunSession:
             log_lines=tuple(self._log_lines),
             seed=self.seed,
         )
+
+    def _append_current_battle_record(
+        self,
+        *,
+        reward_options: tuple[str, ...] = (),
+        reward_choice: str | None = None,
+    ) -> None:
+        self._battle_records.append(
+            build_battle_record(
+                battle_number=self._battle_number,
+                battle_type=self._current_battle_type,
+                enemy_id=self.current_enemy.id,
+                deck_ids=self._current_deck_ids,
+                battle_seed=self._current_battle_seed,
+                result=self.current_battle_replay.result,
+                reward_options=reward_options,
+                reward_choice=reward_choice,
+            )
+        )
+
+    def _enter_reward_choice(self) -> None:
+        reward_options = tuple(self._rng.sample(REWARD_CARD_IDS, k=3))
+        self._current_reward_options = reward_options
+        self._reward_collection_view = canonicalize_card_ids(self._collection)
+        self._record_line(f"Reward options: {format_card_list(reward_options)}")
+        self._phase = "reward_choice"
+
+    def _finish_run(self, *, outcome: str) -> None:
+        self._phase = "finished"
+        self._outcome = outcome
+        self._final_battle_number = self._battle_number
 
     def _prepare_current_battle(self) -> None:
         self._current_battle_type = (
@@ -407,39 +409,12 @@ def validate_reward_choice(
 
 
 def canonicalize_card_ids(card_ids: Sequence[str]) -> tuple[str, ...]:
-    counts = Counter(card_ids)
-    ordered: list[str] = []
-    for card_id in REWARD_CARD_IDS:
-        ordered.extend([card_id] * counts.get(card_id, 0))
-    return tuple(ordered)
+    return _canonicalize_card_ids(card_ids)
 
 
 def format_card_counts(card_ids: Sequence[str]) -> str:
-    counts = Counter(card_ids)
-    parts = [
-        f"{CARDS[card_id].name} x{counts[card_id]}"
-        for card_id in REWARD_CARD_IDS
-        if counts.get(card_id, 0)
-    ]
-    return ", ".join(parts)
+    return _format_card_counts(card_ids, cards=CARDS)
 
 
 def format_card_list(card_ids: Sequence[str]) -> str:
-    return ", ".join(f"{CARDS[card_id].name} [{card_id}]" for card_id in card_ids)
-
-
-def _choose_enemy(*, battle_type: RunBattleType, rng: random.Random) -> EnemyDefinition:
-    if battle_type == "boss":
-        return get_enemy_definition("boss")
-    enemy_id = rng.choice(NORMAL_ENEMY_IDS)
-    return get_enemy_definition(enemy_id)
-
-
-def _record_line(
-    log_lines: list[str],
-    log_emitter: LogEmitter | None,
-    line: str,
-) -> None:
-    log_lines.append(line)
-    if log_emitter is not None:
-        log_emitter(line)
+    return _format_card_list(card_ids, cards=CARDS)
