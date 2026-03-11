@@ -146,13 +146,13 @@ def test_current_hp_carries_across_battles_but_armor_resets() -> None:
     first_battle = result.battles[0]
     second_battle = result.battles[1]
 
-    assert first_battle.result.player.hp == 40
-    assert first_battle.result.player.armor == 21
+    assert first_battle.result.player.hp == 36
+    assert first_battle.result.player.armor == 13
     assert second_battle.result.log_lines[0] == (
-        "Battle start: Player 40/50 HP vs Priest 42/42 HP"
+        "Battle start: Player 36/50 HP vs Priest 42/42 HP"
     )
     assert (
-        "Start: Player HP 40/50, Armor 0 | Priest HP 42/42, Armor 0"
+        "Start: Player HP 36/50, Armor 0 | Priest HP 42/42, Armor 0"
         in second_battle.result.log_lines
     )
 
@@ -180,7 +180,7 @@ def test_run_stops_without_reward_when_player_loses() -> None:
         return "strike"
 
     result = play_run(
-        seed=0,
+        seed=1,
         deck_chooser=choose_deck,
         reward_chooser=choose_reward,
     )
@@ -244,7 +244,7 @@ def test_run_session_progresses_from_deck_choice_to_reward_and_next_battle() -> 
     session.submit_deck_choice(BASE_DECK)
 
     assert session.phase == "battle_replay"
-    assert session.current_battle_replay.result.player.hp == 40
+    assert session.current_battle_replay.result.player.hp == 36
 
     session.complete_battle_replay()
 
@@ -262,7 +262,7 @@ def test_run_session_progresses_from_deck_choice_to_reward_and_next_battle() -> 
 
 
 def test_run_session_finishes_immediately_after_defeat() -> None:
-    session = RunSession(seed=0)
+    session = RunSession(seed=1)
 
     session.submit_deck_choice(
         (

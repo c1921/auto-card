@@ -28,7 +28,6 @@ from auto_card.models import (
 )
 from auto_card.presentation import format_card_effect, get_card_type
 
-MAX_BATTLE_TURNS = 200
 EnemyActionPicker = Callable[[EnemyDefinition, random.Random], EnemyActionKind]
 
 
@@ -85,7 +84,7 @@ def run_battle(
     seed: int,
     player_start_hp: int = PLAYER_STARTING_HP,
     enemy_action_picker: EnemyActionPicker | None = None,
-    max_turns: int = MAX_BATTLE_TURNS,
+    max_turns: int | None = None,
     shuffle_deck: bool = True,
 ) -> BattleResult:
     return _simulate_battle(
@@ -105,7 +104,7 @@ def run_battle_replay(
     seed: int,
     player_start_hp: int = PLAYER_STARTING_HP,
     enemy_action_picker: EnemyActionPicker | None = None,
-    max_turns: int = MAX_BATTLE_TURNS,
+    max_turns: int | None = None,
     shuffle_deck: bool = True,
 ) -> BattleReplay:
     return _simulate_battle(
@@ -126,7 +125,7 @@ def _simulate_battle(
     seed: int,
     player_start_hp: int,
     enemy_action_picker: EnemyActionPicker | None,
-    max_turns: int,
+    max_turns: int | None,
     shuffle_deck: bool,
 ) -> BattleSimulationArtifacts:
     normalized_deck = tuple(deck_ids)
@@ -170,7 +169,9 @@ def _simulate_battle(
     opening_log_lines = tuple(log_lines)
     frames: list[BattleTurnFrame] = []
 
-    for turn in range(1, max_turns + 1):
+    turn = 0
+    while True:
+        turn += 1
         turn_log_start = len(log_lines)
         log_lines.append("")
         log_lines.append(f"Turn {turn}")
@@ -256,9 +257,10 @@ def _simulate_battle(
                 ),
             )
 
-    raise RuntimeError(
-        f"Battle exceeded {max_turns} turns without reaching a result."
-    )
+        if max_turns is not None and turn >= max_turns:
+            raise RuntimeError(
+                f"Battle exceeded {max_turns} turns without reaching a result."
+            )
 
 
 def resolve_player_phase(

@@ -10,7 +10,7 @@ from auto_card.battle import (
     run_battle_replay,
     simulate_battle,
 )
-from auto_card.content import CARDS
+from auto_card.content import CARDS, TEST_DECK, get_enemy_definition
 from auto_card.models import Combatant, EnemyActionKind, EnemyDefinition
 
 
@@ -274,3 +274,28 @@ def test_run_battle_replay_matches_final_result_and_turn_frames() -> None:
     assert replay.frames[2].active_card is not None
     assert replay.frames[2].active_card.charge_progress == 3
     assert replay.frames[-1].log_lines[-1] == "Result: Player victory."
+
+
+@pytest.mark.parametrize(
+    ("enemy_id", "seed"),
+    [
+        ("guard", 0),
+        ("guard", 1),
+        ("guard", 2),
+        ("priest", 35),
+        ("priest", 71),
+        ("priest", 117),
+    ],
+)
+def test_historically_stalling_matchups_resolve_within_explicit_turn_cap(
+    enemy_id: str, seed: int
+) -> None:
+    result = run_battle(
+        deck_ids=TEST_DECK,
+        enemy_definition=get_enemy_definition(enemy_id),
+        seed=seed,
+        max_turns=200,
+    )
+
+    assert result.turns <= 200
+    assert result.outcome in {"victory", "defeat"}
