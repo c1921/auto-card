@@ -46,7 +46,6 @@ class DeckBuilderScreen(Screen[None]):
         deck_table.add_columns("Name", "Count", "Charge", "Effect")
 
     def on_screen_resume(self) -> None:
-        self._selected_deck.clear()
         self._refresh()
         collection_table = self.query_one("#collection-table", DataTable)
         if collection_table.row_count:

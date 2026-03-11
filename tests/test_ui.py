@@ -27,6 +27,13 @@ async def wait_for_screen(app: TextualCardApp, pilot, screen_name: str) -> None:
     )
 
 
+def get_table_rows(table: DataTable) -> list[tuple[str, ...]]:
+    return [
+        tuple(str(cell) for cell in table.get_row_at(index))
+        for index in range(table.row_count)
+    ]
+
+
 def test_textual_deck_builder_adds_and_removes_cards() -> None:
     async def scenario() -> None:
         app = TextualCardApp(seed=19, battle_delay=0.001, end_delay=0.001)
@@ -72,9 +79,16 @@ def test_textual_run_flows_from_battle_to_reward_to_next_deck_choice() -> None:
 
             deck_summary = app.screen.query_one("#deck-summary", Static)
             deck_table = app.screen.query_one("#deck-table", DataTable)
+            start_button = app.screen.query_one("#start-battle", Button)
             assert "Battle 2/6" in str(deck_summary.render())
             assert "HP 46/50" in str(deck_summary.render())
-            assert deck_table.row_count == 0
+            assert get_table_rows(deck_table) == [
+                ("Strike", "4", "1", "Deal 7"),
+                ("Heavy Strike", "2", "3", "Deal 18"),
+                ("Defend", "3", "1", "Gain 5 armor"),
+                ("Fortify", "1", "2", "Gain 12 armor"),
+            ]
+            assert start_button.disabled is False
 
     asyncio.run(scenario())
 
