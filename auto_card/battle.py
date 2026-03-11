@@ -14,8 +14,11 @@ from auto_card.content import (
     get_enemy_definition,
 )
 from auto_card.models import (
+    ActiveCardSnapshot,
     BattleOutcome,
+    BattleReplay,
     BattleResult,
+    BattleTurnFrame,
     CardDefinition,
     ChargeState,
     Combatant,
@@ -23,6 +26,7 @@ from auto_card.models import (
     EnemyActionKind,
     EnemyDefinition,
 )
+from auto_card.presentation import format_card_effect, get_card_type
 
 MAX_BATTLE_TURNS = 200
 EnemyActionPicker = Callable[[EnemyDefinition, random.Random], EnemyActionKind]
@@ -54,6 +58,18 @@ class HealReport:
     hp_after: int
 
 
+@dataclass(frozen=True)
+class PlayerPhaseResult:
+    next_charge_state: ChargeState | None
+    active_card: ActiveCardSnapshot | None
+
+
+@dataclass(frozen=True)
+class BattleSimulationArtifacts:
+    result: BattleResult
+    replay: BattleReplay
+
+
 def simulate_battle(enemy_id: str, seed: int = 0) -> BattleResult:
     enemy_definition = get_enemy_definition(enemy_id)
     return run_battle(
@@ -72,7 +88,49 @@ def run_battle(
     max_turns: int = MAX_BATTLE_TURNS,
     shuffle_deck: bool = True,
 ) -> BattleResult:
-    _validate_deck(deck_ids)
+    return _simulate_battle(
+        deck_ids=deck_ids,
+        enemy_definition=enemy_definition,
+        seed=seed,
+        player_start_hp=player_start_hp,
+        enemy_action_picker=enemy_action_picker,
+        max_turns=max_turns,
+        shuffle_deck=shuffle_deck,
+    ).result
+
+
+def run_battle_replay(
+    deck_ids: Sequence[str],
+    enemy_definition: EnemyDefinition,
+    seed: int,
+    player_start_hp: int = PLAYER_STARTING_HP,
+    enemy_action_picker: EnemyActionPicker | None = None,
+    max_turns: int = MAX_BATTLE_TURNS,
+    shuffle_deck: bool = True,
+) -> BattleReplay:
+    return _simulate_battle(
+        deck_ids=deck_ids,
+        enemy_definition=enemy_definition,
+        seed=seed,
+        player_start_hp=player_start_hp,
+        enemy_action_picker=enemy_action_picker,
+        max_turns=max_turns,
+        shuffle_deck=shuffle_deck,
+    ).replay
+
+
+def _simulate_battle(
+    *,
+    deck_ids: Sequence[str],
+    enemy_definition: EnemyDefinition,
+    seed: int,
+    player_start_hp: int,
+    enemy_action_picker: EnemyActionPicker | None,
+    max_turns: int,
+    shuffle_deck: bool,
+) -> BattleSimulationArtifacts:
+    normalized_deck = tuple(deck_ids)
+    _validate_deck(normalized_deck)
     _validate_player_start_hp(player_start_hp)
 
     rng = random.Random(seed)
@@ -88,7 +146,7 @@ def run_battle(
         hp=enemy_definition.max_hp,
         armor=0,
     )
-    draw_pile = list(deck_ids)
+    draw_pile = list(normalized_deck)
     if shuffle_deck:
         rng.shuffle(draw_pile)
     discard_pile: list[str] = []
@@ -109,15 +167,20 @@ def run_battle(
         ),
         f"Starting deck size: {len(draw_pile)} cards",
     ]
+    opening_log_lines = tuple(log_lines)
+    frames: list[BattleTurnFrame] = []
 
     for turn in range(1, max_turns + 1):
+        turn_log_start = len(log_lines)
         log_lines.append("")
         log_lines.append(f"Turn {turn}")
+        player_start = snapshot(player)
+        enemy_start = snapshot(enemy)
         log_lines.append(
             f"Start: {format_combatant(player)} | {format_combatant(enemy)}"
         )
 
-        charge_state = resolve_player_phase(
+        player_phase = resolve_player_phase(
             player=player,
             enemy=enemy,
             draw_pile=draw_pile,
@@ -126,6 +189,7 @@ def run_battle(
             rng=rng,
             log_lines=log_lines,
         )
+        charge_state = player_phase.next_charge_state
 
         if enemy.hp <= 0:
             log_lines.append(
@@ -133,7 +197,7 @@ def run_battle(
             )
 
         enemy_action = pick_enemy_action(enemy_definition, rng)
-        resolve_enemy_phase(
+        enemy_action_summary = resolve_enemy_phase(
             enemy_definition=enemy_definition,
             enemy=enemy,
             player=player,
@@ -141,6 +205,8 @@ def run_battle(
             log_lines=log_lines,
         )
 
+        player_end = snapshot(player)
+        enemy_end = snapshot(enemy)
         log_lines.append(
             f"End: {format_combatant(player)} | {format_combatant(enemy)}"
         )
@@ -152,14 +218,42 @@ def run_battle(
                 if outcome == "victory"
                 else "Result: Player defeat."
             )
-            return BattleResult(
+
+        frames.append(
+            BattleTurnFrame(
+                turn=turn,
+                player_start=player_start,
+                enemy_start=enemy_start,
+                player_end=player_end,
+                enemy_end=enemy_end,
+                draw_pile_count=len(draw_pile),
+                discard_pile_count=len(discard_pile),
+                active_card=player_phase.active_card,
+                is_charge_blocked=charge_state is not None,
+                enemy_action=enemy_action,
+                enemy_action_summary=enemy_action_summary,
+                log_lines=tuple(log_lines[turn_log_start:]),
+            )
+        )
+
+        if outcome is not None:
+            result = BattleResult(
                 outcome=outcome,
                 turns=turn,
-                player=snapshot(player),
-                enemy=snapshot(enemy),
+                player=player_end,
+                enemy=enemy_end,
                 log_lines=tuple(log_lines),
                 seed=seed,
                 enemy_id=enemy_definition.id,
+            )
+            return BattleSimulationArtifacts(
+                result=result,
+                replay=BattleReplay(
+                    result=result,
+                    deck_ids=normalized_deck,
+                    opening_log_lines=opening_log_lines,
+                    frames=tuple(frames),
+                ),
             )
 
     raise RuntimeError(
@@ -176,7 +270,7 @@ def resolve_player_phase(
     charge_state: ChargeState | None,
     rng: random.Random,
     log_lines: list[str],
-) -> ChargeState | None:
+) -> PlayerPhaseResult:
     if charge_state is not None:
         charge_state.progress += 1
         card = charge_state.card
@@ -188,8 +282,22 @@ def resolve_player_phase(
             resolve_card(card=card, player=player, enemy=enemy, log_lines=log_lines)
             discard_pile.append(card.id)
             log_lines.append(f"{card.name} moves to discard pile.")
-            return None
-        return charge_state
+            return PlayerPhaseResult(
+                next_charge_state=None,
+                active_card=_build_active_card_snapshot(
+                    card=card,
+                    charge_progress=charge_state.progress,
+                    status_text="Resolved",
+                ),
+            )
+        return PlayerPhaseResult(
+            next_charge_state=charge_state,
+            active_card=_build_active_card_snapshot(
+                card=card,
+                charge_progress=charge_state.progress,
+                status_text="Charging",
+            ),
+        )
 
     card = draw_next_card(
         draw_pile=draw_pile,
@@ -199,19 +307,33 @@ def resolve_player_phase(
     )
     if card is None:
         log_lines.append("Player cannot act this turn.")
-        return None
+        return PlayerPhaseResult(next_charge_state=None, active_card=None)
 
     log_lines.append(f"Player flips {card.name}.")
     if card.is_charge_card:
         log_lines.append(
             f"Player begins charging {card.name} (1/{card.charge_turns})."
         )
-        return ChargeState(card=card)
+        return PlayerPhaseResult(
+            next_charge_state=ChargeState(card=card),
+            active_card=_build_active_card_snapshot(
+                card=card,
+                charge_progress=1,
+                status_text="Charging",
+            ),
+        )
 
     resolve_card(card=card, player=player, enemy=enemy, log_lines=log_lines)
     discard_pile.append(card.id)
     log_lines.append(f"{card.name} moves to discard pile.")
-    return None
+    return PlayerPhaseResult(
+        next_charge_state=None,
+        active_card=_build_active_card_snapshot(
+            card=card,
+            charge_progress=1,
+            status_text="Resolved",
+        ),
+    )
 
 
 def resolve_enemy_phase(
@@ -221,31 +343,34 @@ def resolve_enemy_phase(
     player: Combatant,
     action: EnemyActionKind,
     log_lines: list[str],
-) -> None:
+) -> str:
     if action == "attack":
         report = apply_damage(player, enemy_definition.attack_value)
-        log_lines.append(
+        summary = (
             f"{enemy.name} attacks for {enemy_definition.attack_value} damage "
             f"(Player armor {report.armor_before}->{report.armor_after}, "
             f"HP {report.hp_before}->{report.hp_after})."
         )
-        return
+        log_lines.append(summary)
+        return summary
 
     if action == "defend":
         report = gain_armor(enemy, enemy_definition.defend_value)
-        log_lines.append(
+        summary = (
             f"{enemy.name} gains {report.gained} armor "
             f"(Armor {report.armor_before}->{report.armor_after})."
         )
-        return
+        log_lines.append(summary)
+        return summary
 
     if action == "heal":
         report = heal_combatant(enemy, enemy_definition.heal_value)
-        log_lines.append(
+        summary = (
             f"{enemy.name} heals for {report.restored} HP "
             f"(HP {report.hp_before}->{report.hp_after})."
         )
-        return
+        log_lines.append(summary)
+        return summary
 
     raise ValueError(f"Unsupported enemy action: {action}")
 
@@ -393,6 +518,23 @@ def format_combatant(combatant: Combatant) -> str:
     return (
         f"{combatant.name} HP {combatant.hp}/{combatant.max_hp}, "
         f"Armor {combatant.armor}"
+    )
+
+
+def _build_active_card_snapshot(
+    *,
+    card: CardDefinition,
+    charge_progress: int,
+    status_text: str,
+) -> ActiveCardSnapshot:
+    return ActiveCardSnapshot(
+        card_id=card.id,
+        name=card.name,
+        card_type=get_card_type(card),
+        charge_turns=card.charge_turns,
+        charge_progress=charge_progress,
+        effect_text=format_card_effect(card),
+        status_text=status_text,
     )
 
 

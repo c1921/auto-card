@@ -7,6 +7,7 @@ from auto_card.battle import (
     heal_combatant,
     resolve_card,
     run_battle,
+    run_battle_replay,
     simulate_battle,
 )
 from auto_card.content import CARDS
@@ -238,3 +239,38 @@ def test_run_battle_rejects_invalid_starting_hp() -> None:
             enemy_action_picker=constant_action("attack"),
             shuffle_deck=False,
         )
+
+
+def test_run_battle_replay_matches_final_result_and_turn_frames() -> None:
+    enemy = make_enemy(
+        enemy_id="training_dummy",
+        name="Training Dummy",
+        max_hp=22,
+        attack_value=0,
+    )
+
+    result = run_battle(
+        deck_ids=["strike", "heavy_strike"],
+        enemy_definition=enemy,
+        seed=0,
+        enemy_action_picker=constant_action("attack"),
+        shuffle_deck=False,
+    )
+    replay = run_battle_replay(
+        deck_ids=["strike", "heavy_strike"],
+        enemy_definition=enemy,
+        seed=0,
+        enemy_action_picker=constant_action("attack"),
+        shuffle_deck=False,
+    )
+
+    assert replay.result == result
+    assert len(replay.frames) == result.turns
+    assert replay.opening_log_lines == result.log_lines[:4]
+    assert replay.frames[0].active_card is not None
+    assert replay.frames[0].active_card.name == "Heavy Strike"
+    assert replay.frames[0].active_card.charge_progress == 1
+    assert replay.frames[0].is_charge_blocked is True
+    assert replay.frames[2].active_card is not None
+    assert replay.frames[2].active_card.charge_progress == 3
+    assert replay.frames[-1].log_lines[-1] == "Result: Player victory."

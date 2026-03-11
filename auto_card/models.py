@@ -6,6 +6,7 @@ from typing import Literal
 BattleOutcome = Literal["victory", "defeat"]
 EnemyActionKind = Literal["attack", "defend", "heal"]
 RunBattleType = Literal["normal", "boss"]
+RunPhase = Literal["deck_choice", "battle_replay", "reward_choice", "finished"]
 
 
 @dataclass(frozen=True)
@@ -66,6 +67,41 @@ class BattleResult:
     log_lines: tuple[str, ...]
     seed: int
     enemy_id: str
+
+
+@dataclass(frozen=True)
+class ActiveCardSnapshot:
+    card_id: str
+    name: str
+    card_type: str
+    charge_turns: int
+    charge_progress: int
+    effect_text: str
+    status_text: str
+
+
+@dataclass(frozen=True)
+class BattleTurnFrame:
+    turn: int
+    player_start: CombatantSnapshot
+    enemy_start: CombatantSnapshot
+    player_end: CombatantSnapshot
+    enemy_end: CombatantSnapshot
+    draw_pile_count: int
+    discard_pile_count: int
+    active_card: ActiveCardSnapshot | None
+    is_charge_blocked: bool
+    enemy_action: EnemyActionKind
+    enemy_action_summary: str
+    log_lines: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class BattleReplay:
+    result: BattleResult
+    deck_ids: tuple[str, ...]
+    opening_log_lines: tuple[str, ...]
+    frames: tuple[BattleTurnFrame, ...]
 
 
 @dataclass(frozen=True)

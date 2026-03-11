@@ -5,14 +5,17 @@ Pure command-line prototype for the rogue-like card game MVP.
 ## Run
 
 ```bash
+uv run main.py ui
+uv run main.py ui --seed 19
 uv run main.py
 uv run main.py --seed 19 --script run.json
 uv run main.py battle --enemy guard --seed 104
 uv run main.py battle --enemy priest --seed 2
 ```
 
-`main.py` now runs a full 5-fight-plus-boss session by default. Use `battle` to
-run the original single-fight simulator.
+`main.py ui` launches the Textual terminal UI. `main.py` still runs the full
+5-fight-plus-boss text session by default, and `battle` runs the original
+single-fight simulator.
 
 Scripted runs use a JSON file shaped like this (truncated example):
 

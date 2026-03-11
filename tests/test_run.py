@@ -4,7 +4,7 @@ from collections.abc import Sequence
 
 import pytest
 
-from auto_card.run import play_run, validate_deck_choice
+from auto_card.run import RunSession, play_run, validate_deck_choice
 
 BASE_DECK = (
     "strike",
@@ -232,3 +232,55 @@ def test_reward_options_are_unique_and_duplicate_rewards_accumulate() -> None:
         assert len(set(record.reward_options)) == 3
 
     assert result.final_collection.count("fortify") == 3
+
+
+def test_run_session_progresses_from_deck_choice_to_reward_and_next_battle() -> None:
+    session = RunSession(seed=19)
+
+    assert session.phase == "deck_choice"
+    assert session.battle_number == 1
+    assert session.current_enemy.id == "priest"
+
+    session.submit_deck_choice(BASE_DECK)
+
+    assert session.phase == "battle_replay"
+    assert session.current_battle_replay.result.player.hp == 40
+
+    session.complete_battle_replay()
+
+    assert session.phase == "reward_choice"
+    reward_request = session.get_reward_choice_request()
+    assert len(reward_request.options) == 3
+
+    chosen_reward = reward_request.options[0]
+    owned_before = session.collection.count(chosen_reward)
+    session.submit_reward_choice(chosen_reward)
+
+    assert session.phase == "deck_choice"
+    assert session.battle_number == 2
+    assert session.collection.count(chosen_reward) == owned_before + 1
+
+
+def test_run_session_finishes_immediately_after_defeat() -> None:
+    session = RunSession(seed=0)
+
+    session.submit_deck_choice(
+        (
+            "strike",
+            "strike",
+            "strike",
+            "strike",
+            "heavy_strike",
+            "heavy_strike",
+            "recover",
+            "drain_slash",
+            "defend",
+            "defend",
+        )
+    )
+    session.complete_battle_replay()
+
+    assert session.phase == "finished"
+    result = session.build_result()
+    assert result.outcome == "defeat"
+    assert result.final_battle_number == 1

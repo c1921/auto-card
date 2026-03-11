@@ -123,6 +123,20 @@ def build_run_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def build_ui_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="main.py ui",
+        description="Run the Textual terminal UI for the rogue-like card game MVP.",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=0,
+        help="Global RNG seed for the whole run.",
+    )
+    return parser
+
+
 def build_battle_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="main.py battle",
@@ -150,6 +164,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         if command == "battle":
             return _run_battle_mode(args_list[1:])
+        if command == "ui":
+            return _run_ui_mode(args_list[1:])
         if command == "run":
             return _run_session_mode(args_list[1:])
         return _run_session_mode(args_list)
@@ -163,6 +179,15 @@ def _run_battle_mode(argv: Sequence[str]) -> int:
     result = simulate_battle(enemy_id=args.enemy, seed=args.seed)
     for line in result.log_lines:
         print(line)
+    return 0
+
+
+def _run_ui_mode(argv: Sequence[str]) -> int:
+    from auto_card.ui import TextualCardApp
+
+    args = build_ui_parser().parse_args(argv)
+    app = TextualCardApp(seed=args.seed)
+    app.run()
     return 0
 
 

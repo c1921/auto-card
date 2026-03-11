@@ -1,0 +1,137 @@
+Screen {
+    background: #1a1814;
+    color: #f3ead7;
+    padding: 1 2;
+}
+
+#screen-title {
+    content-align: center middle;
+    height: 3;
+    background: #40362a;
+    color: #f7f1e5;
+    text-style: bold;
+    border: tall #c59a52;
+    margin-bottom: 1;
+}
+
+.panel {
+    border: round #8d6e45;
+    background: #24211c;
+    padding: 1;
+}
+
+.section-title {
+    text-style: bold;
+    margin-bottom: 1;
+    color: #f0c674;
+}
+
+#deck-layout,
+#battle-top,
+#battle-bottom,
+#reward-options {
+    height: 1fr;
+    width: 100%;
+}
+
+#deck-layout > .panel,
+#battle-top > .panel,
+#battle-bottom > .panel,
+#reward-options > .reward-card {
+    width: 1fr;
+    margin-right: 1;
+}
+
+#deck-layout > .panel:last-child,
+#battle-top > .panel:last-child,
+#battle-bottom > .panel:last-child,
+#reward-options > .reward-card:last-child {
+    margin-right: 0;
+}
+
+#deck-footer {
+    height: 6;
+    margin-top: 1;
+    align: center middle;
+}
+
+#deck-summary,
+#deck-hint {
+    width: 1fr;
+    height: 100%;
+}
+
+#start-battle {
+    width: 24;
+    height: 3;
+    content-align: center middle;
+    dock: right;
+}
+
+DataTable {
+    height: 1fr;
+}
+
+#battle-layout {
+    height: 1fr;
+}
+
+.stat-card {
+    height: 7;
+    content-align: center middle;
+}
+
+#current-card-panel {
+    height: 7;
+    margin: 1 0;
+    content-align: center middle;
+}
+
+#deck-panel {
+    width: 34;
+}
+
+#battle-log-panel {
+    width: 1fr;
+}
+
+#battle-log {
+    height: 1fr;
+}
+
+#reward-layout {
+    height: 1fr;
+    align: center top;
+}
+
+#reward-summary {
+    width: 100%;
+    height: 5;
+    content-align: center middle;
+    margin-bottom: 1;
+}
+
+.reward-card {
+    height: 12;
+    width: 1fr;
+    content-align: center middle;
+}
+
+#result-layout {
+    width: 70;
+    height: 12;
+    align: center middle;
+    margin: 4 0 0 0;
+}
+
+#result-summary {
+    height: 1fr;
+    width: 100%;
+    content-align: center middle;
+}
+
+#quit-button {
+    width: 20;
+    margin-top: 1;
+    align-horizontal: center;
+}

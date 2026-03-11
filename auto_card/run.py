@@ -5,7 +5,7 @@ from collections import Counter
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
-from auto_card.battle import run_battle
+from auto_card.battle import run_battle_replay
 from auto_card.content import (
     CARDS,
     NORMAL_ENEMY_IDS,
@@ -17,7 +17,14 @@ from auto_card.content import (
     TOTAL_BATTLE_COUNT,
     get_enemy_definition,
 )
-from auto_card.models import EnemyDefinition, RunBattleRecord, RunBattleType, RunResult
+from auto_card.models import (
+    BattleReplay,
+    EnemyDefinition,
+    RunBattleRecord,
+    RunBattleType,
+    RunPhase,
+    RunResult,
+)
 
 DeckChooser = Callable[["DeckChoiceRequest"], Sequence[str]]
 RewardChooser = Callable[["RewardChoiceRequest"], str]
@@ -45,6 +52,287 @@ class RewardChoiceRequest:
     options: tuple[str, ...]
 
 
+class RunSession:
+    def __init__(
+        self,
+        *,
+        seed: int = 0,
+        log_emitter: LogEmitter | None = None,
+    ) -> None:
+        self.seed = seed
+        self._rng = random.Random(seed)
+        self._log_emitter = log_emitter
+        self._current_hp = PLAYER_STARTING_HP
+        self._collection = list(STARTING_COLLECTION)
+        self._battle_records: list[RunBattleRecord] = []
+        self._log_lines: list[str] = []
+        self._phase: RunPhase = "deck_choice"
+        self._battle_number = 1
+        self._current_battle_type: RunBattleType = "normal"
+        self._current_enemy: EnemyDefinition | None = None
+        self._current_collection_view: tuple[str, ...] = ()
+        self._current_battle_replay: BattleReplay | None = None
+        self._current_deck_ids: tuple[str, ...] = ()
+        self._current_battle_seed = 0
+        self._current_reward_options: tuple[str, ...] = ()
+        self._reward_collection_view: tuple[str, ...] = ()
+        self._outcome: str | None = None
+        self._final_battle_number = 0
+
+        self._record_line(f"Run start: Player {self._current_hp}/{PLAYER_MAX_HP} HP.")
+        self._record_line(f"Seed: {seed}")
+        self._record_line(
+            f"Starting collection: {format_card_counts(self._collection)}"
+        )
+        self._prepare_current_battle()
+
+    @property
+    def phase(self) -> RunPhase:
+        return self._phase
+
+    @property
+    def battle_number(self) -> int:
+        return self._battle_number
+
+    @property
+    def total_battles(self) -> int:
+        return TOTAL_BATTLE_COUNT
+
+    @property
+    def current_hp(self) -> int:
+        return self._current_hp
+
+    @property
+    def collection(self) -> tuple[str, ...]:
+        return canonicalize_card_ids(self._collection)
+
+    @property
+    def current_enemy(self) -> EnemyDefinition:
+        if self._current_enemy is None:
+            raise RuntimeError("Current enemy is not available.")
+        return self._current_enemy
+
+    @property
+    def current_battle_type(self) -> RunBattleType:
+        return self._current_battle_type
+
+    @property
+    def current_battle_replay(self) -> BattleReplay:
+        if self._current_battle_replay is None:
+            raise RuntimeError("Battle replay is not available.")
+        return self._current_battle_replay
+
+    @property
+    def log_lines(self) -> tuple[str, ...]:
+        return tuple(self._log_lines)
+
+    @property
+    def final_outcome(self) -> str | None:
+        return self._outcome
+
+    @property
+    def next_battle_number(self) -> int | None:
+        if self._battle_number >= TOTAL_BATTLE_COUNT:
+            return None
+        return self._battle_number + 1
+
+    @property
+    def next_battle_type(self) -> RunBattleType | None:
+        next_battle_number = self.next_battle_number
+        if next_battle_number is None:
+            return None
+        return "boss" if next_battle_number == TOTAL_BATTLE_COUNT else "normal"
+
+    def get_deck_choice_request(self) -> DeckChoiceRequest:
+        if self._phase != "deck_choice":
+            raise RuntimeError(
+                f"Deck choice is not available during phase '{self._phase}'."
+            )
+        return DeckChoiceRequest(
+            battle_number=self._battle_number,
+            total_battles=TOTAL_BATTLE_COUNT,
+            battle_type=self._current_battle_type,
+            enemy=self.current_enemy,
+            current_hp=self._current_hp,
+            max_hp=PLAYER_MAX_HP,
+            collection=self._current_collection_view,
+        )
+
+    def submit_deck_choice(self, deck_ids: Sequence[str]) -> BattleReplay:
+        if self._phase != "deck_choice":
+            raise RuntimeError(
+                f"Deck choice cannot be submitted during phase '{self._phase}'."
+            )
+
+        normalized_deck = validate_deck_choice(
+            deck_ids=deck_ids,
+            collection=self._current_collection_view,
+        )
+        self._current_deck_ids = normalized_deck
+        self._record_line(f"Chosen deck: {format_card_counts(normalized_deck)}")
+
+        self._current_battle_seed = self._rng.randint(0, 2**32 - 1)
+        self._record_line(f"Battle seed: {self._current_battle_seed}")
+
+        replay = run_battle_replay(
+            deck_ids=normalized_deck,
+            enemy_definition=self.current_enemy,
+            seed=self._current_battle_seed,
+            player_start_hp=self._current_hp,
+        )
+        self._current_battle_replay = replay
+        for line in replay.result.log_lines:
+            self._record_line(line)
+
+        self._phase = "battle_replay"
+        return replay
+
+    def complete_battle_replay(self) -> None:
+        if self._phase != "battle_replay":
+            raise RuntimeError(
+                f"Battle replay cannot be completed during phase '{self._phase}'."
+            )
+
+        replay = self.current_battle_replay
+        self._current_hp = replay.result.player.hp
+
+        if replay.result.outcome == "defeat":
+            self._battle_records.append(
+                RunBattleRecord(
+                    battle_number=self._battle_number,
+                    battle_type=self._current_battle_type,
+                    enemy_id=self.current_enemy.id,
+                    deck_ids=self._current_deck_ids,
+                    battle_seed=self._current_battle_seed,
+                    result=replay.result,
+                )
+            )
+            self._record_line("")
+            self._record_line(
+                f"Run result: Defeat on battle {self._battle_number}."
+            )
+            self._phase = "finished"
+            self._outcome = "defeat"
+            self._final_battle_number = self._battle_number
+            return
+
+        if self._current_battle_type == "boss":
+            self._battle_records.append(
+                RunBattleRecord(
+                    battle_number=self._battle_number,
+                    battle_type=self._current_battle_type,
+                    enemy_id=self.current_enemy.id,
+                    deck_ids=self._current_deck_ids,
+                    battle_seed=self._current_battle_seed,
+                    result=replay.result,
+                )
+            )
+            self._record_line("")
+            self._record_line("Run result: Victory.")
+            self._phase = "finished"
+            self._outcome = "victory"
+            self._final_battle_number = self._battle_number
+            return
+
+        reward_options = tuple(self._rng.sample(REWARD_CARD_IDS, k=3))
+        self._current_reward_options = reward_options
+        self._reward_collection_view = canonicalize_card_ids(self._collection)
+        self._record_line(f"Reward options: {format_card_list(reward_options)}")
+        self._phase = "reward_choice"
+
+    def get_reward_choice_request(self) -> RewardChoiceRequest:
+        if self._phase != "reward_choice":
+            raise RuntimeError(
+                f"Reward choice is not available during phase '{self._phase}'."
+            )
+        return RewardChoiceRequest(
+            battle_number=self._battle_number,
+            enemy=self.current_enemy,
+            current_hp=self._current_hp,
+            max_hp=PLAYER_MAX_HP,
+            collection=self._reward_collection_view,
+            options=self._current_reward_options,
+        )
+
+    def submit_reward_choice(self, reward_choice: str) -> None:
+        if self._phase != "reward_choice":
+            raise RuntimeError(
+                f"Reward choice cannot be submitted during phase '{self._phase}'."
+            )
+
+        validated_reward = validate_reward_choice(
+            reward_choice=reward_choice,
+            options=self._current_reward_options,
+        )
+        self._collection.append(validated_reward)
+        self._record_line(
+            f"Reward chosen: {CARDS[validated_reward].name} [{validated_reward}]"
+        )
+        self._record_line(
+            f"Collection now: {format_card_counts(self._collection)}"
+        )
+
+        self._battle_records.append(
+            RunBattleRecord(
+                battle_number=self._battle_number,
+                battle_type=self._current_battle_type,
+                enemy_id=self.current_enemy.id,
+                deck_ids=self._current_deck_ids,
+                battle_seed=self._current_battle_seed,
+                result=self.current_battle_replay.result,
+                reward_options=self._current_reward_options,
+                reward_choice=validated_reward,
+            )
+        )
+
+        self._battle_number += 1
+        self._current_battle_replay = None
+        self._current_reward_options = ()
+        self._reward_collection_view = ()
+        self._phase = "deck_choice"
+        self._prepare_current_battle()
+
+    def build_result(self) -> RunResult:
+        if self._phase != "finished" or self._outcome is None:
+            raise RuntimeError("Run result is only available after the session ends.")
+
+        return RunResult(
+            outcome=self._outcome,
+            final_battle_number=self._final_battle_number,
+            final_hp=self._current_hp,
+            final_collection=canonicalize_card_ids(self._collection),
+            battles=tuple(self._battle_records),
+            log_lines=tuple(self._log_lines),
+            seed=self.seed,
+        )
+
+    def _prepare_current_battle(self) -> None:
+        self._current_battle_type = (
+            "boss" if self._battle_number == TOTAL_BATTLE_COUNT else "normal"
+        )
+        self._current_enemy = _choose_enemy(
+            battle_type=self._current_battle_type,
+            rng=self._rng,
+        )
+        self._current_collection_view = canonicalize_card_ids(self._collection)
+
+        self._record_line("")
+        self._record_line(
+            (
+                f"Battle {self._battle_number}/{TOTAL_BATTLE_COUNT}: "
+                f"{self.current_enemy.name} [{self.current_enemy.id}] "
+                f"({self._current_battle_type})."
+            )
+        )
+        self._record_line(f"Current HP: {self._current_hp}/{PLAYER_MAX_HP}")
+        self._record_line(
+            f"Collection: {format_card_counts(self._current_collection_view)}"
+        )
+
+    def _record_line(self, line: str) -> None:
+        _record_line(self._log_lines, self._log_emitter, line)
+
+
 def play_run(
     *,
     seed: int = 0,
@@ -52,173 +340,19 @@ def play_run(
     reward_chooser: RewardChooser,
     log_emitter: LogEmitter | None = None,
 ) -> RunResult:
-    rng = random.Random(seed)
-    current_hp = PLAYER_STARTING_HP
-    collection = list(STARTING_COLLECTION)
-    battle_records: list[RunBattleRecord] = []
-    log_lines: list[str] = []
+    session = RunSession(seed=seed, log_emitter=log_emitter)
 
-    _record_line(
-        log_lines,
-        log_emitter,
-        f"Run start: Player {current_hp}/{PLAYER_MAX_HP} HP.",
-    )
-    _record_line(log_lines, log_emitter, f"Seed: {seed}")
-    _record_line(
-        log_lines,
-        log_emitter,
-        f"Starting collection: {format_card_counts(collection)}",
-    )
-
-    for battle_number in range(1, TOTAL_BATTLE_COUNT + 1):
-        battle_type = "boss" if battle_number == TOTAL_BATTLE_COUNT else "normal"
-        enemy = _choose_enemy(battle_type=battle_type, rng=rng)
-        collection_view = canonicalize_card_ids(collection)
-
-        _record_line(log_lines, log_emitter, "")
-        _record_line(
-            log_lines,
-            log_emitter,
-            (
-                f"Battle {battle_number}/{TOTAL_BATTLE_COUNT}: "
-                f"{enemy.name} [{enemy.id}] ({battle_type})."
-            ),
-        )
-        _record_line(
-            log_lines,
-            log_emitter,
-            f"Current HP: {current_hp}/{PLAYER_MAX_HP}",
-        )
-        _record_line(
-            log_lines,
-            log_emitter,
-            f"Collection: {format_card_counts(collection_view)}",
-        )
-
-        deck_request = DeckChoiceRequest(
-            battle_number=battle_number,
-            total_battles=TOTAL_BATTLE_COUNT,
-            battle_type=battle_type,
-            enemy=enemy,
-            current_hp=current_hp,
-            max_hp=PLAYER_MAX_HP,
-            collection=collection_view,
-        )
+    while session.phase != "finished":
+        deck_request = session.get_deck_choice_request()
         deck_ids = tuple(deck_chooser(deck_request))
-        validate_deck_choice(deck_ids=deck_ids, collection=collection_view)
-        _record_line(
-            log_lines,
-            log_emitter,
-            f"Chosen deck: {format_card_counts(deck_ids)}",
-        )
+        session.submit_deck_choice(deck_ids)
+        session.complete_battle_replay()
+        if session.phase == "reward_choice":
+            reward_request = session.get_reward_choice_request()
+            reward_choice = reward_chooser(reward_request)
+            session.submit_reward_choice(reward_choice)
 
-        battle_seed = rng.randint(0, 2**32 - 1)
-        _record_line(log_lines, log_emitter, f"Battle seed: {battle_seed}")
-        battle_result = run_battle(
-            deck_ids=deck_ids,
-            enemy_definition=enemy,
-            seed=battle_seed,
-            player_start_hp=current_hp,
-        )
-        for line in battle_result.log_lines:
-            _record_line(log_lines, log_emitter, line)
-
-        current_hp = battle_result.player.hp
-        if battle_result.outcome == "defeat":
-            battle_records.append(
-                RunBattleRecord(
-                    battle_number=battle_number,
-                    battle_type=battle_type,
-                    enemy_id=enemy.id,
-                    deck_ids=deck_ids,
-                    battle_seed=battle_seed,
-                    result=battle_result,
-                )
-            )
-            _record_line(log_lines, log_emitter, "")
-            _record_line(
-                log_lines,
-                log_emitter,
-                f"Run result: Defeat on battle {battle_number}.",
-            )
-            return RunResult(
-                outcome="defeat",
-                final_battle_number=battle_number,
-                final_hp=current_hp,
-                final_collection=canonicalize_card_ids(collection),
-                battles=tuple(battle_records),
-                log_lines=tuple(log_lines),
-                seed=seed,
-            )
-
-        if battle_type == "boss":
-            battle_records.append(
-                RunBattleRecord(
-                    battle_number=battle_number,
-                    battle_type=battle_type,
-                    enemy_id=enemy.id,
-                    deck_ids=deck_ids,
-                    battle_seed=battle_seed,
-                    result=battle_result,
-                )
-            )
-            _record_line(log_lines, log_emitter, "")
-            _record_line(log_lines, log_emitter, "Run result: Victory.")
-            return RunResult(
-                outcome="victory",
-                final_battle_number=battle_number,
-                final_hp=current_hp,
-                final_collection=canonicalize_card_ids(collection),
-                battles=tuple(battle_records),
-                log_lines=tuple(log_lines),
-                seed=seed,
-            )
-
-        reward_options = tuple(rng.sample(REWARD_CARD_IDS, k=3))
-        _record_line(
-            log_lines,
-            log_emitter,
-            f"Reward options: {format_card_list(reward_options)}",
-        )
-        reward_request = RewardChoiceRequest(
-            battle_number=battle_number,
-            enemy=enemy,
-            current_hp=current_hp,
-            max_hp=PLAYER_MAX_HP,
-            collection=collection_view,
-            options=reward_options,
-        )
-        reward_choice = reward_chooser(reward_request)
-        validate_reward_choice(reward_choice=reward_choice, options=reward_options)
-        collection.append(reward_choice)
-        _record_line(
-            log_lines,
-            log_emitter,
-            (
-                f"Reward chosen: {CARDS[reward_choice].name} "
-                f"[{reward_choice}]"
-            ),
-        )
-        _record_line(
-            log_lines,
-            log_emitter,
-            f"Collection now: {format_card_counts(collection)}",
-        )
-
-        battle_records.append(
-            RunBattleRecord(
-                battle_number=battle_number,
-                battle_type=battle_type,
-                enemy_id=enemy.id,
-                deck_ids=deck_ids,
-                battle_seed=battle_seed,
-                result=battle_result,
-                reward_options=reward_options,
-                reward_choice=reward_choice,
-            )
-        )
-
-    raise RuntimeError("Run ended without reaching a final battle result.")
+    return session.build_result()
 
 
 def validate_deck_choice(

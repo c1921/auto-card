@@ -7,6 +7,9 @@ from pathlib import Path
 
 import pytest
 
+from auto_card import ui as ui_module
+from auto_card.cli import main
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 BASE_DECK = [
@@ -101,3 +104,21 @@ def test_cli_returns_error_for_invalid_script(tmp_path: Path) -> None:
 
     assert result.returncode == 1
     assert "missing a deck choice for battle 1" in result.stderr
+
+
+def test_cli_accepts_ui_subcommand(monkeypatch: pytest.MonkeyPatch) -> None:
+    observed: dict[str, int | bool] = {}
+
+    class FakeApp:
+        def __init__(self, *, seed: int) -> None:
+            observed["seed"] = seed
+
+        def run(self) -> None:
+            observed["ran"] = True
+
+    monkeypatch.setattr(ui_module, "TextualCardApp", FakeApp)
+
+    result = main(["ui", "--seed", "7"])
+
+    assert result == 0
+    assert observed == {"seed": 7, "ran": True}
