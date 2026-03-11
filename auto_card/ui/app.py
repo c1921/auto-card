@@ -39,7 +39,7 @@ class DeckBuilderScreen(Screen[None]):
     def on_mount(self) -> None:
         collection_table = self.query_one("#collection-table", DataTable)
         collection_table.cursor_type = "row"
-        collection_table.add_columns("Name", "Type", "Charge", "Owned", "Effect")
+        collection_table.add_columns("Name", "Type", "Charge", "Available", "Effect")
 
         deck_table = self.query_one("#deck-table", DataTable)
         deck_table.cursor_type = "row"
@@ -80,28 +80,38 @@ class DeckBuilderScreen(Screen[None]):
         request = self.app.session.get_deck_choice_request()
         collection_counts = Counter(request.collection)
         deck_counts = Counter(self._selected_deck)
+        available_counts = collection_counts - deck_counts
 
         collection_table = self.query_one("#collection-table", DataTable)
         collection_row = collection_table.cursor_row if collection_table.row_count else 0
+        selected_collection_card_id = self._selected_row_id(
+            self._collection_row_ids,
+            collection_row,
+        )
         collection_table.clear()
         self._collection_row_ids = []
         for card_id, card in CARDS.items():
-            owned_count = collection_counts.get(card_id, 0)
-            if not owned_count:
+            available_count = available_counts.get(card_id, 0)
+            if not available_count:
                 continue
             self._collection_row_ids.append(card_id)
             collection_table.add_row(
                 card.name,
                 get_card_type(card),
                 str(card.charge_turns),
-                str(owned_count),
+                str(available_count),
                 format_card_effect(card),
             )
-        if self._collection_row_ids:
-            collection_table.move_cursor(row=min(collection_row, len(self._collection_row_ids) - 1))
+        self._restore_cursor(
+            table=collection_table,
+            row_ids=self._collection_row_ids,
+            selected_row_id=selected_collection_card_id,
+            previous_row=collection_row,
+        )
 
         deck_table = self.query_one("#deck-table", DataTable)
         deck_row = deck_table.cursor_row if deck_table.row_count else 0
+        selected_deck_card_id = self._selected_row_id(self._deck_row_ids, deck_row)
         deck_table.clear()
         self._deck_row_ids = []
         for card_id, count in sorted(
@@ -116,8 +126,12 @@ class DeckBuilderScreen(Screen[None]):
                 str(card.charge_turns),
                 format_card_effect(card),
             )
-        if self._deck_row_ids:
-            deck_table.move_cursor(row=min(deck_row, len(self._deck_row_ids) - 1))
+        self._restore_cursor(
+            table=deck_table,
+            row_ids=self._deck_row_ids,
+            selected_row_id=selected_deck_card_id,
+            previous_row=deck_row,
+        )
 
         self.query_one("#deck-summary", Static).update(
             (
@@ -172,6 +186,26 @@ class DeckBuilderScreen(Screen[None]):
         card_id = self._deck_row_ids[index]
         self._selected_deck.remove(card_id)
         self._refresh()
+
+    def _selected_row_id(self, row_ids: list[str], index: int) -> str | None:
+        if 0 <= index < len(row_ids):
+            return row_ids[index]
+        return None
+
+    def _restore_cursor(
+        self,
+        *,
+        table: DataTable,
+        row_ids: list[str],
+        selected_row_id: str | None,
+        previous_row: int,
+    ) -> None:
+        if not row_ids:
+            return
+        if selected_row_id in row_ids:
+            table.move_cursor(row=row_ids.index(selected_row_id))
+            return
+        table.move_cursor(row=min(previous_row, len(row_ids) - 1))
 
 
 class BattleScreen(Screen[None]):
