@@ -1,6 +1,5 @@
-def main():
-    print("Hello from auto-card!")
+from auto_card.cli import main
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
