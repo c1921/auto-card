@@ -1,143 +1,539 @@
 from __future__ import annotations
 
-from auto_card.models import CardDefinition, EnemyDefinition
+from collections import Counter
+from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
+import tomllib
+from typing import Any, cast
 
-PLAYER_NAME = "Player"
-PLAYER_MAX_HP = 50
-PLAYER_STARTING_HP = 50
-PLAYER_STARTING_ARMOR = 0
-RUN_DECK_SIZE = 10
-NORMAL_BATTLE_COUNT = 5
-TOTAL_BATTLE_COUNT = 6
-CARD_ORDER: tuple[str, ...] = (
-    "strike",
-    "heavy_strike",
-    "drain_slash",
-    "defend",
-    "fortify",
-    "recover",
+from auto_card.models import (
+    CardDefinition,
+    EffectDefinition,
+    EnemyActionDefinition,
+    EnemyDefinition,
+    GameConfig,
+    RoleDefinition,
+    StatusKind,
 )
-CARD_ORDER_INDEX: dict[str, int] = {
-    card_id: index for index, card_id in enumerate(CARD_ORDER)
-}
 
-CARDS: dict[str, CardDefinition] = {
-    "strike": CardDefinition(
-        id="strike",
-        name="Strike",
-        charge_turns=1,
-        damage=7,
-    ),
-    "heavy_strike": CardDefinition(
-        id="heavy_strike",
-        name="Heavy Strike",
-        charge_turns=3,
-        damage=18,
-    ),
-    "drain_slash": CardDefinition(
-        id="drain_slash",
-        name="Drain Slash",
-        charge_turns=1,
-        damage=4,
-        heal=2,
-    ),
-    "defend": CardDefinition(
-        id="defend",
-        name="Defend",
-        charge_turns=1,
-        armor_gain=5,
-    ),
-    "fortify": CardDefinition(
-        id="fortify",
-        name="Fortify",
-        charge_turns=2,
-        armor_gain=12,
-    ),
-    "recover": CardDefinition(
-        id="recover",
-        name="Recover",
-        charge_turns=1,
-        heal=3,
-    ),
-}
+DATA_DIR = Path(__file__).resolve().parents[1] / "data"
+CARD_DIR = DATA_DIR / "cards"
+NEUTRAL_POOL_ID = "neutral"
+KNOWN_EFFECT_KINDS = {"damage", "armor", "heal", "apply_status"}
+KNOWN_EFFECT_TARGETS = {"self", "opponent"}
+KNOWN_STATUS_KINDS = {"poison", "strength", "stun"}
 
-STARTING_COLLECTION: list[str] = [
-    "strike",
-    "strike",
-    "strike",
-    "strike",
-    "defend",
-    "defend",
-    "defend",
-    "heavy_strike",
-    "heavy_strike",
-    "fortify",
-    "recover",
-    "drain_slash",
-]
 
-TEST_DECK: list[str] = [
-    "strike",
-    "strike",
-    "strike",
-    "strike",
-    "defend",
-    "defend",
-    "defend",
-    "heavy_strike",
-    "fortify",
-    "recover",
-]
+@dataclass(frozen=True)
+class ContentRegistry:
+    game: GameConfig
+    cards: dict[str, CardDefinition]
+    enemies: dict[str, EnemyDefinition]
+    roles: dict[str, RoleDefinition]
 
-NORMAL_ENEMY_IDS: tuple[str, ...] = ("bruiser", "guard", "priest")
-REWARD_CARD_IDS: tuple[str, ...] = CARD_ORDER
 
-ENEMIES: dict[str, EnemyDefinition] = {
-    "bruiser": EnemyDefinition(
-        id="bruiser",
-        name="Bruiser",
-        max_hp=45,
-        attack_weight=70,
-        defend_weight=20,
-        heal_weight=10,
-        attack_value=7,
-        defend_value=4,
-        heal_value=2,
-    ),
-    "guard": EnemyDefinition(
-        id="guard",
-        name="Guard",
-        max_hp=55,
-        attack_weight=35,
-        defend_weight=40,
-        heal_weight=15,
-        attack_value=5,
-        defend_value=5,
-        heal_value=2,
-    ),
-    "priest": EnemyDefinition(
-        id="priest",
-        name="Priest",
-        max_hp=42,
-        attack_weight=30,
-        defend_weight=20,
-        heal_weight=40,
-        attack_value=4,
-        defend_value=4,
-        heal_value=3,
-    ),
-    "boss": EnemyDefinition(
-        id="boss",
-        name="Boss",
-        max_hp=72,
-        attack_weight=40,
-        defend_weight=30,
-        heal_weight=30,
-        attack_value=8,
-        defend_value=6,
-        heal_value=4,
-    ),
-}
+def validate_content(data_dir: Path | None = None) -> ContentRegistry:
+    root = (data_dir or DATA_DIR).resolve()
+    errors: list[str] = []
+
+    game = _parse_game(root / "game.toml", errors)
+    cards = _parse_cards(root / "cards", errors)
+    roles = _parse_roles(root / "roles.toml", errors)
+    enemies = _parse_enemies(root / "enemies.toml", errors)
+
+    if game is not None:
+        _validate_game(game, enemies, roles, errors, root / "game.toml")
+    if roles:
+        _validate_role_pools(cards, roles, errors)
+    if game is not None and roles:
+        _validate_roles(game, cards, roles, errors, root / "roles.toml")
+    if enemies:
+        _validate_enemies(enemies, errors, root / "enemies.toml")
+
+    if errors:
+        message = "\n".join(f"- {error}" for error in errors)
+        raise ValueError(f"Content validation failed:\n{message}")
+
+    if game is None:
+        raise ValueError("Content validation failed:\n- missing game config.")
+
+    ordered_cards = dict(sorted(cards.items(), key=lambda item: item[1].sort_order))
+    return ContentRegistry(
+        game=game,
+        cards=ordered_cards,
+        enemies=enemies,
+        roles=roles,
+    )
+
+
+@lru_cache(maxsize=1)
+def _load_default_registry() -> ContentRegistry:
+    return validate_content()
+
+
+def load_content() -> ContentRegistry:
+    return _load_default_registry()
+
+
+def _load_toml(path: Path, errors: list[str]) -> dict[str, Any]:
+    try:
+        with path.open("rb") as handle:
+            data = tomllib.load(handle)
+    except FileNotFoundError:
+        errors.append(f"{path}: file not found.")
+        return {}
+    except tomllib.TOMLDecodeError as exc:
+        errors.append(f"{path}: invalid TOML ({exc}).")
+        return {}
+
+    if not isinstance(data, dict):
+        errors.append(f"{path}: root must be a TOML table.")
+        return {}
+    return data
+
+
+def _parse_game(path: Path, errors: list[str]) -> GameConfig | None:
+    raw = _load_toml(path, errors)
+    if not raw:
+        return None
+
+    normal_enemy_ids = _string_list(raw.get("normal_enemy_ids"), f"{path}: normal_enemy_ids", errors)
+    return GameConfig(
+        player_name=_string_value(raw.get("player_name"), f"{path}: player_name", errors),
+        starting_armor=_positive_int_value(raw.get("starting_armor"), f"{path}: starting_armor", errors, allow_zero=True),
+        run_deck_size=_positive_int_value(raw.get("run_deck_size"), f"{path}: run_deck_size", errors),
+        normal_battle_count=_positive_int_value(raw.get("normal_battle_count"), f"{path}: normal_battle_count", errors),
+        total_battle_count=_positive_int_value(raw.get("total_battle_count"), f"{path}: total_battle_count", errors),
+        reward_option_count=_positive_int_value(raw.get("reward_option_count"), f"{path}: reward_option_count", errors),
+        default_role_id=_string_value(raw.get("default_role_id"), f"{path}: default_role_id", errors),
+        normal_enemy_ids=tuple(normal_enemy_ids),
+        boss_enemy_id=_string_value(raw.get("boss_enemy_id"), f"{path}: boss_enemy_id", errors),
+    )
+
+
+def _parse_cards(card_dir: Path, errors: list[str]) -> dict[str, CardDefinition]:
+    cards: dict[str, CardDefinition] = {}
+    if not card_dir.exists():
+        errors.append(f"{card_dir}: directory not found.")
+        return cards
+
+    for path in sorted(card_dir.glob("*.toml")):
+        raw = _load_toml(path, errors)
+        entries = raw.get("cards", [])
+        if not isinstance(entries, list):
+            errors.append(f"{path}: cards must be an array of tables.")
+            continue
+        for index, entry in enumerate(entries, start=1):
+            if not isinstance(entry, dict):
+                errors.append(f"{path}: cards[{index - 1}] must be a table.")
+                continue
+            card = _build_card(entry, path, index, errors)
+            if card is None:
+                continue
+            if card.id in cards:
+                errors.append(f"{path}: duplicate card id '{card.id}'.")
+                continue
+            cards[card.id] = card
+    return cards
+
+
+def _build_card(
+    raw: dict[str, Any],
+    path: Path,
+    index: int,
+    errors: list[str],
+) -> CardDefinition | None:
+    context = f"{path}: cards[{index - 1}]"
+    effects_raw = raw.get("effects", [])
+    if not isinstance(effects_raw, list):
+        errors.append(f"{context}: effects must be an array of tables.")
+        effects_raw = []
+    effects = [
+        effect
+        for effect in (
+            _build_effect(cast(dict[str, Any], effect_raw), f"{context}.effects[{effect_index}]", errors)
+            if isinstance(effect_raw, dict)
+            else None
+            for effect_index, effect_raw in enumerate(effects_raw)
+        )
+        if effect is not None
+    ]
+    if not effects:
+        errors.append(f"{context}: cards must define at least one effect.")
+
+    pools = _string_list(raw.get("pools"), f"{context}: pools", errors)
+    return CardDefinition(
+        id=_string_value(raw.get("id"), f"{context}: id", errors),
+        name=_string_value(raw.get("name"), f"{context}: name", errors),
+        sort_order=_positive_int_value(raw.get("sort_order"), f"{context}: sort_order", errors, allow_zero=True),
+        charge_turns=_positive_int_value(raw.get("charge_turns"), f"{context}: charge_turns", errors),
+        effects=tuple(effects),
+        pools=tuple(pools),
+    )
+
+
+def _build_effect(
+    raw: dict[str, Any],
+    context: str,
+    errors: list[str],
+) -> EffectDefinition | None:
+    kind = _string_value(raw.get("kind"), f"{context}: kind", errors)
+    target = _string_value(raw.get("target"), f"{context}: target", errors)
+    value = _positive_int_value(raw.get("value"), f"{context}: value", errors)
+    status = raw.get("status")
+
+    if kind not in KNOWN_EFFECT_KINDS:
+        errors.append(f"{context}: unknown effect kind '{kind}'.")
+    if target not in KNOWN_EFFECT_TARGETS:
+        errors.append(f"{context}: unknown effect target '{target}'.")
+
+    status_value: StatusKind | None = None
+    if kind == "apply_status":
+        if not isinstance(status, str):
+            errors.append(f"{context}: apply_status requires a string status.")
+        elif status not in KNOWN_STATUS_KINDS:
+            errors.append(f"{context}: unknown status '{status}'.")
+        else:
+            status_value = cast(StatusKind, status)
+    elif status is not None:
+        errors.append(f"{context}: only apply_status effects may define status.")
+
+    return EffectDefinition(
+        kind=cast(Any, kind),
+        target=cast(Any, target),
+        value=value,
+        status=status_value,
+    )
+
+
+def _parse_roles(path: Path, errors: list[str]) -> dict[str, RoleDefinition]:
+    raw = _load_toml(path, errors)
+    roles: dict[str, RoleDefinition] = {}
+    entries = raw.get("roles", [])
+    if not isinstance(entries, list):
+        errors.append(f"{path}: roles must be an array of tables.")
+        return roles
+
+    for index, entry in enumerate(entries, start=1):
+        if not isinstance(entry, dict):
+            errors.append(f"{path}: roles[{index - 1}] must be a table.")
+            continue
+        role = _build_role(entry, path, index, errors)
+        if role is None:
+            continue
+        if role.id in roles:
+            errors.append(f"{path}: duplicate role id '{role.id}'.")
+            continue
+        roles[role.id] = role
+    return roles
+
+
+def _build_role(
+    raw: dict[str, Any],
+    path: Path,
+    index: int,
+    errors: list[str],
+) -> RoleDefinition | None:
+    context = f"{path}: roles[{index - 1}]"
+    return RoleDefinition(
+        id=_string_value(raw.get("id"), f"{context}: id", errors),
+        name=_string_value(raw.get("name"), f"{context}: name", errors),
+        description=_string_value(raw.get("description"), f"{context}: description", errors),
+        max_hp=_positive_int_value(raw.get("max_hp"), f"{context}: max_hp", errors),
+        starting_hp=_positive_int_value(raw.get("starting_hp"), f"{context}: starting_hp", errors),
+        starting_collection=tuple(
+            _string_list(raw.get("starting_collection"), f"{context}: starting_collection", errors)
+        ),
+        starting_deck=tuple(
+            _string_list(raw.get("starting_deck"), f"{context}: starting_deck", errors)
+        ),
+        card_pools=tuple(
+            _string_list(raw.get("card_pools"), f"{context}: card_pools", errors)
+        ),
+    )
+
+
+def _parse_enemies(path: Path, errors: list[str]) -> dict[str, EnemyDefinition]:
+    raw = _load_toml(path, errors)
+    enemies: dict[str, EnemyDefinition] = {}
+    entries = raw.get("enemies", [])
+    if not isinstance(entries, list):
+        errors.append(f"{path}: enemies must be an array of tables.")
+        return enemies
+
+    for index, entry in enumerate(entries, start=1):
+        if not isinstance(entry, dict):
+            errors.append(f"{path}: enemies[{index - 1}] must be a table.")
+            continue
+        enemy = _build_enemy(entry, path, index, errors)
+        if enemy is None:
+            continue
+        if enemy.id in enemies:
+            errors.append(f"{path}: duplicate enemy id '{enemy.id}'.")
+            continue
+        enemies[enemy.id] = enemy
+    return enemies
+
+
+def _build_enemy(
+    raw: dict[str, Any],
+    path: Path,
+    index: int,
+    errors: list[str],
+) -> EnemyDefinition | None:
+    context = f"{path}: enemies[{index - 1}]"
+    actions_raw = raw.get("actions", [])
+    if not isinstance(actions_raw, list):
+        errors.append(f"{context}: actions must be an array of tables.")
+        actions_raw = []
+
+    actions = [
+        action
+        for action in (
+            _build_enemy_action(cast(dict[str, Any], action_raw), f"{context}.actions[{action_index}]", errors)
+            if isinstance(action_raw, dict)
+            else None
+            for action_index, action_raw in enumerate(actions_raw)
+        )
+        if action is not None
+    ]
+    if not actions:
+        errors.append(f"{context}: enemies must define at least one action.")
+
+    return EnemyDefinition(
+        id=_string_value(raw.get("id"), f"{context}: id", errors),
+        name=_string_value(raw.get("name"), f"{context}: name", errors),
+        max_hp=_positive_int_value(raw.get("max_hp"), f"{context}: max_hp", errors),
+        actions=tuple(actions),
+    )
+
+
+def _build_enemy_action(
+    raw: dict[str, Any],
+    context: str,
+    errors: list[str],
+) -> EnemyActionDefinition | None:
+    effects_raw = raw.get("effects", [])
+    if not isinstance(effects_raw, list):
+        errors.append(f"{context}: effects must be an array of tables.")
+        effects_raw = []
+    effects = [
+        effect
+        for effect in (
+            _build_effect(cast(dict[str, Any], effect_raw), f"{context}.effects[{effect_index}]", errors)
+            if isinstance(effect_raw, dict)
+            else None
+            for effect_index, effect_raw in enumerate(effects_raw)
+        )
+        if effect is not None
+    ]
+    if not effects:
+        errors.append(f"{context}: enemy actions must define at least one effect.")
+
+    return EnemyActionDefinition(
+        id=_string_value(raw.get("id"), f"{context}: id", errors),
+        name=_string_value(raw.get("name"), f"{context}: name", errors),
+        weight=_positive_int_value(raw.get("weight"), f"{context}: weight", errors),
+        effects=tuple(effects),
+    )
+
+
+def _validate_game(
+    game: GameConfig,
+    enemies: dict[str, EnemyDefinition],
+    roles: dict[str, RoleDefinition],
+    errors: list[str],
+    path: Path,
+) -> None:
+    if game.total_battle_count != game.normal_battle_count + 1:
+        errors.append(
+            f"{path}: total_battle_count must equal normal_battle_count + 1."
+        )
+    if game.default_role_id not in roles:
+        errors.append(f"{path}: unknown default_role_id '{game.default_role_id}'.")
+    missing_normal_enemies = [enemy_id for enemy_id in game.normal_enemy_ids if enemy_id not in enemies]
+    if missing_normal_enemies:
+        errors.append(
+            f"{path}: unknown normal_enemy_ids {', '.join(sorted(missing_normal_enemies))}."
+        )
+    if game.boss_enemy_id not in enemies:
+        errors.append(f"{path}: unknown boss_enemy_id '{game.boss_enemy_id}'.")
+
+
+def _validate_role_pools(
+    cards: dict[str, CardDefinition],
+    roles: dict[str, RoleDefinition],
+    errors: list[str],
+) -> None:
+    known_pools = {NEUTRAL_POOL_ID, *roles}
+    for card in cards.values():
+        if not card.pools:
+            errors.append(f"card '{card.id}' must belong to at least one pool.")
+            continue
+        unknown_pools = [pool for pool in card.pools if pool not in known_pools]
+        if unknown_pools:
+            errors.append(
+                f"card '{card.id}' references unknown pools {', '.join(sorted(unknown_pools))}."
+            )
+
+    for role in roles.values():
+        if not role.card_pools:
+            errors.append(f"role '{role.id}' must expose at least one pool.")
+            continue
+        unknown_pools = [
+            pool
+            for pool in role.card_pools
+            if pool != NEUTRAL_POOL_ID and pool not in roles
+        ]
+        if unknown_pools:
+            errors.append(
+                f"role '{role.id}' references unknown card pools {', '.join(sorted(unknown_pools))}."
+            )
+
+
+def _validate_roles(
+    game: GameConfig,
+    cards: dict[str, CardDefinition],
+    roles: dict[str, RoleDefinition],
+    errors: list[str],
+    path: Path,
+) -> None:
+    for role in roles.values():
+        if role.starting_hp > role.max_hp:
+            errors.append(f"{path}: role '{role.id}' has starting_hp above max_hp.")
+        if len(role.starting_deck) != game.run_deck_size:
+            errors.append(
+                f"{path}: role '{role.id}' starting_deck must contain exactly {game.run_deck_size} cards."
+            )
+
+        accessible_cards = set(get_role_reward_card_ids(role.id, cards=cards, roles=roles))
+        missing_collection = sorted(
+            {card_id for card_id in role.starting_collection if card_id not in cards}
+        )
+        if missing_collection:
+            errors.append(
+                f"{path}: role '{role.id}' starting_collection references unknown cards {', '.join(missing_collection)}."
+            )
+        missing_deck = sorted(
+            {card_id for card_id in role.starting_deck if card_id not in cards}
+        )
+        if missing_deck:
+            errors.append(
+                f"{path}: role '{role.id}' starting_deck references unknown cards {', '.join(missing_deck)}."
+            )
+
+        inaccessible_cards = sorted(
+            {
+                card_id
+                for card_id in role.starting_collection + role.starting_deck
+                if card_id in cards and card_id not in accessible_cards
+            }
+        )
+        if inaccessible_cards:
+            errors.append(
+                f"{path}: role '{role.id}' cannot access cards {', '.join(inaccessible_cards)}."
+            )
+
+        collection_counts = Counter(role.starting_collection)
+        deck_counts = Counter(role.starting_deck)
+        overspent = sorted(
+            card_id
+            for card_id, count in deck_counts.items()
+            if count > collection_counts.get(card_id, 0)
+        )
+        if overspent:
+            errors.append(
+                f"{path}: role '{role.id}' starting_deck uses more copies than owned for {', '.join(overspent)}."
+            )
+
+        reward_pool = get_role_reward_card_ids(role.id, cards=cards, roles=roles)
+        if len(reward_pool) < game.reward_option_count:
+            errors.append(
+                f"{path}: role '{role.id}' reward pool must contain at least {game.reward_option_count} cards."
+            )
+
+
+def _validate_enemies(
+    enemies: dict[str, EnemyDefinition],
+    errors: list[str],
+    path: Path,
+) -> None:
+    for enemy in enemies.values():
+        action_ids = [action.id for action in enemy.actions]
+        duplicate_ids = sorted(
+            action_id
+            for action_id, count in Counter(action_ids).items()
+            if count > 1
+        )
+        if duplicate_ids:
+            errors.append(
+                f"{path}: enemy '{enemy.id}' has duplicate action ids {', '.join(duplicate_ids)}."
+            )
+        total_weight = sum(action.weight for action in enemy.actions)
+        if total_weight <= 0:
+            errors.append(
+                f"{path}: enemy '{enemy.id}' must have positive total action weight."
+            )
+
+
+def _string_value(value: Any, context: str, errors: list[str]) -> str:
+    if not isinstance(value, str) or not value:
+        errors.append(f"{context} must be a non-empty string.")
+        return ""
+    return value
+
+
+def _positive_int_value(
+    value: Any,
+    context: str,
+    errors: list[str],
+    *,
+    allow_zero: bool = False,
+) -> int:
+    if not isinstance(value, int):
+        errors.append(f"{context} must be an integer.")
+        return 0
+    if allow_zero and value < 0:
+        errors.append(f"{context} must be at least 0.")
+        return 0
+    if not allow_zero and value <= 0:
+        errors.append(f"{context} must be greater than 0.")
+        return 0
+    return value
+
+
+def _string_list(value: Any, context: str, errors: list[str]) -> list[str]:
+    if not isinstance(value, list) or not all(isinstance(entry, str) and entry for entry in value):
+        errors.append(f"{context} must be an array of non-empty strings.")
+        return []
+    return list(value)
+
+
+def get_role_reward_card_ids(
+    role_id: str,
+    *,
+    cards: dict[str, CardDefinition] | None = None,
+    roles: dict[str, RoleDefinition] | None = None,
+) -> tuple[str, ...]:
+    card_registry = cards or CARDS
+    role_registry = roles or ROLES
+    role = role_registry[role_id]
+    return tuple(
+        card.id
+        for card in card_registry.values()
+        if any(pool in role.card_pools for pool in card.pools)
+    )
+
+
+def get_card_definition(card_id: str) -> CardDefinition:
+    try:
+        return CARDS[card_id]
+    except KeyError as exc:
+        valid_ids = ", ".join(sorted(CARDS))
+        raise ValueError(
+            f"Unknown card '{card_id}'. Expected one of: {valid_ids}"
+        ) from exc
 
 
 def get_enemy_definition(enemy_id: str) -> EnemyDefinition:
@@ -145,4 +541,41 @@ def get_enemy_definition(enemy_id: str) -> EnemyDefinition:
         return ENEMIES[enemy_id]
     except KeyError as exc:
         valid_ids = ", ".join(sorted(ENEMIES))
-        raise ValueError(f"Unknown enemy '{enemy_id}'. Expected one of: {valid_ids}") from exc
+        raise ValueError(
+            f"Unknown enemy '{enemy_id}'. Expected one of: {valid_ids}"
+        ) from exc
+
+
+def get_role_definition(role_id: str) -> RoleDefinition:
+    try:
+        return ROLES[role_id]
+    except KeyError as exc:
+        valid_ids = ", ".join(sorted(ROLES))
+        raise ValueError(
+            f"Unknown role '{role_id}'. Expected one of: {valid_ids}"
+        ) from exc
+
+
+REGISTRY = load_content()
+GAME_CONFIG = REGISTRY.game
+CARDS = REGISTRY.cards
+ENEMIES = REGISTRY.enemies
+ROLES = REGISTRY.roles
+DEFAULT_ROLE = ROLES[GAME_CONFIG.default_role_id]
+
+PLAYER_NAME = GAME_CONFIG.player_name
+PLAYER_STARTING_ARMOR = GAME_CONFIG.starting_armor
+RUN_DECK_SIZE = GAME_CONFIG.run_deck_size
+NORMAL_BATTLE_COUNT = GAME_CONFIG.normal_battle_count
+TOTAL_BATTLE_COUNT = GAME_CONFIG.total_battle_count
+REWARD_OPTION_COUNT = GAME_CONFIG.reward_option_count
+NORMAL_ENEMY_IDS = GAME_CONFIG.normal_enemy_ids
+BOSS_ENEMY_ID = GAME_CONFIG.boss_enemy_id
+
+CARD_ORDER = tuple(CARDS)
+CARD_ORDER_INDEX = {card_id: index for index, card_id in enumerate(CARD_ORDER)}
+PLAYER_MAX_HP = DEFAULT_ROLE.max_hp
+PLAYER_STARTING_HP = DEFAULT_ROLE.starting_hp
+STARTING_COLLECTION = list(DEFAULT_ROLE.starting_collection)
+TEST_DECK = list(DEFAULT_ROLE.starting_deck)
+REWARD_CARD_IDS = get_role_reward_card_ids(DEFAULT_ROLE.id)

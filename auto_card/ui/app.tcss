@@ -29,7 +29,8 @@ Screen {
 #deck-layout,
 #battle-top,
 #battle-bottom,
-#reward-options {
+#reward-options,
+#role-options {
     height: 1fr;
     width: 100%;
 }
@@ -37,7 +38,8 @@ Screen {
 #deck-layout > .panel,
 #battle-top > .panel,
 #battle-bottom > .panel,
-#reward-options > .reward-card {
+#reward-options > .reward-card,
+#role-options > .role-card {
     width: 1fr;
     margin-right: 1;
 }
@@ -45,7 +47,8 @@ Screen {
 #deck-layout > .panel:last-child,
 #battle-top > .panel:last-child,
 #battle-bottom > .panel:last-child,
-#reward-options > .reward-card:last-child {
+#reward-options > .reward-card:last-child,
+#role-options > .role-card:last-child {
     margin-right: 0;
 }
 
@@ -77,7 +80,7 @@ DataTable {
 }
 
 .stat-card {
-    height: 7;
+    height: 9;
     content-align: center middle;
 }
 
@@ -104,7 +107,19 @@ DataTable {
     align: center top;
 }
 
+#role-layout {
+    height: 1fr;
+    align: center top;
+}
+
 #reward-summary {
+    width: 100%;
+    height: 6;
+    content-align: center middle;
+    margin-bottom: 1;
+}
+
+#role-summary {
     width: 100%;
     height: 5;
     content-align: center middle;
@@ -113,6 +128,12 @@ DataTable {
 
 .reward-card {
     height: 12;
+    width: 1fr;
+    content-align: center middle;
+}
+
+.role-card {
+    height: 10;
     width: 1fr;
     content-align: center middle;
 }

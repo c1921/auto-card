@@ -1,0 +1,67 @@
+[[roles]]
+id = "adventurer"
+name = "Adventurer"
+description = "Balanced fighter with reliable neutral cards and crowd-control rewards."
+max_hp = 50
+starting_hp = 50
+starting_collection = [
+  "strike",
+  "strike",
+  "strike",
+  "strike",
+  "defend",
+  "defend",
+  "defend",
+  "heavy_strike",
+  "heavy_strike",
+  "fortify",
+  "recover",
+  "drain_slash",
+]
+starting_deck = [
+  "strike",
+  "strike",
+  "strike",
+  "strike",
+  "defend",
+  "defend",
+  "defend",
+  "heavy_strike",
+  "fortify",
+  "recover",
+]
+card_pools = ["neutral", "adventurer"]
+
+[[roles]]
+id = "alchemist"
+name = "Alchemist"
+description = "Leans on poison and attrition while sharing a few neutral staples."
+max_hp = 44
+starting_hp = 44
+starting_collection = [
+  "strike",
+  "strike",
+  "defend",
+  "defend",
+  "defend",
+  "recover",
+  "fortify",
+  "venom_cut",
+  "venom_cut",
+  "venom_cut",
+  "toxic_brew",
+  "toxic_brew",
+]
+starting_deck = [
+  "strike",
+  "strike",
+  "defend",
+  "defend",
+  "defend",
+  "recover",
+  "fortify",
+  "venom_cut",
+  "venom_cut",
+  "toxic_brew",
+]
+card_pools = ["neutral", "alchemist"]

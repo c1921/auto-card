@@ -1,22 +1,46 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 BattleOutcome = Literal["victory", "defeat"]
-EnemyActionKind = Literal["attack", "defend", "heal"]
+EffectKind = Literal["damage", "armor", "heal", "apply_status"]
+EffectTarget = Literal["self", "opponent"]
+StatusKind = Literal["poison", "strength", "stun"]
+EnemyActionKind = str
 RunBattleType = Literal["normal", "boss"]
 RunPhase = Literal["deck_choice", "battle_replay", "reward_choice", "finished"]
+
+
+@dataclass(frozen=True)
+class GameConfig:
+    player_name: str
+    starting_armor: int
+    run_deck_size: int
+    normal_battle_count: int
+    total_battle_count: int
+    reward_option_count: int
+    default_role_id: str
+    normal_enemy_ids: tuple[str, ...]
+    boss_enemy_id: str
+
+
+@dataclass(frozen=True)
+class EffectDefinition:
+    kind: EffectKind
+    target: EffectTarget
+    value: int
+    status: StatusKind | None = None
 
 
 @dataclass(frozen=True)
 class CardDefinition:
     id: str
     name: str
+    sort_order: int
     charge_turns: int
-    damage: int = 0
-    armor_gain: int = 0
-    heal: int = 0
+    effects: tuple[EffectDefinition, ...]
+    pools: tuple[str, ...]
 
     @property
     def is_charge_card(self) -> bool:
@@ -24,16 +48,37 @@ class CardDefinition:
 
 
 @dataclass(frozen=True)
+class EnemyActionDefinition:
+    id: str
+    name: str
+    weight: int
+    effects: tuple[EffectDefinition, ...]
+
+
+@dataclass(frozen=True)
 class EnemyDefinition:
     id: str
     name: str
     max_hp: int
-    attack_weight: int
-    defend_weight: int
-    heal_weight: int
-    attack_value: int
-    defend_value: int
-    heal_value: int
+    actions: tuple[EnemyActionDefinition, ...]
+
+
+@dataclass(frozen=True)
+class RoleDefinition:
+    id: str
+    name: str
+    description: str
+    max_hp: int
+    starting_hp: int
+    starting_collection: tuple[str, ...]
+    starting_deck: tuple[str, ...]
+    card_pools: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class StatusSnapshot:
+    kind: StatusKind
+    value: int
 
 
 @dataclass
@@ -42,6 +87,7 @@ class Combatant:
     max_hp: int
     hp: int
     armor: int = 0
+    statuses: dict[StatusKind, int] = field(default_factory=dict)
 
 
 @dataclass
@@ -56,6 +102,7 @@ class CombatantSnapshot:
     max_hp: int
     hp: int
     armor: int
+    statuses: tuple[StatusSnapshot, ...]
 
 
 @dataclass(frozen=True)
@@ -67,6 +114,7 @@ class BattleResult:
     log_lines: tuple[str, ...]
     seed: int
     enemy_id: str
+    role_id: str
 
 
 @dataclass(frozen=True)
@@ -92,6 +140,7 @@ class BattleTurnFrame:
     active_card: ActiveCardSnapshot | None
     is_charge_blocked: bool
     enemy_action: EnemyActionKind
+    enemy_action_name: str
     enemy_action_summary: str
     log_lines: tuple[str, ...]
 
@@ -125,3 +174,4 @@ class RunResult:
     battles: tuple[RunBattleRecord, ...]
     log_lines: tuple[str, ...]
     seed: int
+    role_id: str

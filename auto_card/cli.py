@@ -9,7 +9,15 @@ from pathlib import Path
 from typing import Any
 
 from auto_card.battle import simulate_battle
-from auto_card.content import CARD_ORDER, CARDS, ENEMIES, RUN_DECK_SIZE
+from auto_card.content import (
+    CARDS,
+    CARD_ORDER,
+    DEFAULT_ROLE,
+    ENEMIES,
+    ROLES,
+    RUN_DECK_SIZE,
+    validate_content,
+)
 from auto_card.run import (
     DeckChoiceRequest,
     RewardChoiceRequest,
@@ -24,7 +32,8 @@ class InteractiveChoiceProvider:
         print(
             (
                 f"Build deck for battle {request.battle_number}/{request.total_battles} "
-                f"against {request.enemy.name} [{request.enemy.id}]."
+                f"against {request.enemy.name} [{request.enemy.id}] "
+                f"as {request.role.name} [{request.role.id}]."
             )
         )
         print(f"Current HP: {request.current_hp}/{request.max_hp}")
@@ -48,7 +57,7 @@ class InteractiveChoiceProvider:
         print(
             (
                 f"Choose a reward after battle {request.battle_number} "
-                f"against {request.enemy.name}:"
+                f"against {request.enemy.name} for {request.role.name}:"
             )
         )
         for index, card_id in enumerate(request.options, start=1):
@@ -77,11 +86,13 @@ class ScriptedChoiceProvider:
         *,
         deck_choices: Sequence[Sequence[str]],
         reward_choices: Sequence[str],
+        role_id: str | None = None,
     ) -> None:
         self._deck_choices = [tuple(choice) for choice in deck_choices]
         self._reward_choices = list(reward_choices)
         self._deck_index = 0
         self._reward_index = 0
+        self.role_id = role_id
 
     def choose_deck(self, request: DeckChoiceRequest) -> tuple[str, ...]:
         if self._deck_index >= len(self._deck_choices):
@@ -116,9 +127,14 @@ def build_run_parser() -> argparse.ArgumentParser:
         help="Global RNG seed for the whole run.",
     )
     parser.add_argument(
+        "--role",
+        choices=sorted(ROLES),
+        help="Role to start with.",
+    )
+    parser.add_argument(
         "--script",
         type=Path,
-        help="JSON file with scripted deck and reward choices.",
+        help="JSON file with optional role and scripted deck/reward choices.",
     )
     return parser
 
@@ -133,6 +149,11 @@ def build_ui_parser() -> argparse.ArgumentParser:
         type=int,
         default=0,
         help="Global RNG seed for the whole run.",
+    )
+    parser.add_argument(
+        "--role",
+        choices=sorted(ROLES),
+        help="Role to preselect before entering the UI.",
     )
     return parser
 
@@ -149,12 +170,24 @@ def build_battle_parser() -> argparse.ArgumentParser:
         help="Enemy template to fight.",
     )
     parser.add_argument(
+        "--role",
+        choices=sorted(ROLES),
+        help="Role whose starting deck and HP should be used.",
+    )
+    parser.add_argument(
         "--seed",
         type=int,
         default=0,
         help="RNG seed used for deck shuffling and enemy actions.",
     )
     return parser
+
+
+def build_validate_content_parser() -> argparse.ArgumentParser:
+    return argparse.ArgumentParser(
+        prog="main.py validate-content",
+        description="Validate all TOML-driven game content.",
+    )
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -168,6 +201,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _run_ui_mode(args_list[1:])
         if command == "run":
             return _run_session_mode(args_list[1:])
+        if command == "validate-content":
+            return _run_validate_content_mode(args_list[1:])
         return _run_session_mode(args_list)
     except Exception as exc:
         print(f"Error: {exc}", file=sys.stderr)
@@ -176,7 +211,11 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 def _run_battle_mode(argv: Sequence[str]) -> int:
     args = build_battle_parser().parse_args(argv)
-    result = simulate_battle(enemy_id=args.enemy, seed=args.seed)
+    result = simulate_battle(
+        enemy_id=args.enemy,
+        seed=args.seed,
+        role_id=args.role or DEFAULT_ROLE.id,
+    )
     for line in result.log_lines:
         print(line)
     return 0
@@ -186,7 +225,7 @@ def _run_ui_mode(argv: Sequence[str]) -> int:
     from auto_card.ui import TextualCardApp
 
     args = build_ui_parser().parse_args(argv)
-    app = TextualCardApp(seed=args.seed)
+    app = TextualCardApp(seed=args.seed, role_id=args.role)
     app.run()
     return 0
 
@@ -194,12 +233,21 @@ def _run_ui_mode(argv: Sequence[str]) -> int:
 def _run_session_mode(argv: Sequence[str]) -> int:
     args = build_run_parser().parse_args(argv)
     provider = _build_choice_provider(script_path=args.script)
+    role_id = args.role or getattr(provider, "role_id", None) or DEFAULT_ROLE.id
     play_run(
         seed=args.seed,
+        role_id=role_id,
         deck_chooser=provider.choose_deck,
         reward_chooser=provider.choose_reward,
         log_emitter=print,
     )
+    return 0
+
+
+def _run_validate_content_mode(argv: Sequence[str]) -> int:
+    build_validate_content_parser().parse_args(argv)
+    validate_content()
+    print("Content validation passed.")
     return 0
 
 
@@ -224,9 +272,11 @@ def _load_scripted_choice_provider(script_path: Path) -> ScriptedChoiceProvider:
 
     deck_choices = _parse_deck_choices(payload.get("deck_choices"))
     reward_choices = _parse_reward_choices(payload.get("reward_choices"))
+    role_id = _parse_role_id(payload.get("role"))
     return ScriptedChoiceProvider(
         deck_choices=deck_choices,
         reward_choices=reward_choices,
+        role_id=role_id,
     )
 
 
@@ -256,6 +306,17 @@ def _parse_reward_choices(raw_value: Any) -> list[str]:
     ):
         raise ValueError("'reward_choices' must be an array of card ids.")
     return list(raw_value)
+
+
+def _parse_role_id(raw_value: Any) -> str | None:
+    if raw_value is None:
+        return None
+    if not isinstance(raw_value, str):
+        raise ValueError("'role' must be a string if provided.")
+    if raw_value not in ROLES:
+        valid = ", ".join(sorted(ROLES))
+        raise ValueError(f"'role' must be one of: {valid}.")
+    return raw_value
 
 
 def _format_collection_lines(collection: Sequence[str]) -> list[str]:

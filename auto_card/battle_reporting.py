@@ -7,8 +7,9 @@ from auto_card.models import (
     Combatant,
     CombatantSnapshot,
     EnemyDefinition,
+    StatusSnapshot,
 )
-from auto_card.presentation import format_card_effect, get_card_type
+from auto_card.presentation import format_card_effect, format_statuses, get_card_type, status_sort_key
 
 
 def build_opening_log_lines(
@@ -19,18 +20,16 @@ def build_opening_log_lines(
     seed: int,
     deck_size: int,
 ) -> list[str]:
+    weight_text = ", ".join(
+        f"{action.name} {action.weight}" for action in enemy_definition.actions
+    )
     return [
         (
             f"Battle start: {player.name} {player.hp}/{player.max_hp} HP vs "
             f"{enemy.name} {enemy.hp}/{enemy.max_hp} HP"
         ),
         f"Seed: {seed}",
-        (
-            "Enemy weights: "
-            f"attack {enemy_definition.attack_weight}, "
-            f"defend {enemy_definition.defend_weight}, "
-            f"heal {enemy_definition.heal_weight}"
-        ),
+        f"Enemy actions: {weight_text}",
         f"Starting deck size: {deck_size} cards",
     ]
 
@@ -57,22 +56,36 @@ def build_outcome_line(outcome: BattleOutcome) -> str:
 
 
 def build_enemy_zero_hp_line(enemy_name: str) -> str:
-    return f"{enemy_name} is at 0 HP but still acts before the end-of-turn death check."
+    return (
+        f"{enemy_name} is at 0 HP but still acts before the end-of-turn death check."
+    )
 
 
 def snapshot(combatant: Combatant) -> CombatantSnapshot:
+    status_snapshots = tuple(
+        sorted(
+            (
+                StatusSnapshot(kind=kind, value=value)
+                for kind, value in combatant.statuses.items()
+                if value > 0
+            ),
+            key=status_sort_key,
+        )
+    )
     return CombatantSnapshot(
         name=combatant.name,
         max_hp=combatant.max_hp,
         hp=combatant.hp,
         armor=combatant.armor,
+        statuses=status_snapshots,
     )
 
 
 def format_combatant(combatant: Combatant) -> str:
+    snapshot_value = snapshot(combatant)
     return (
         f"{combatant.name} HP {combatant.hp}/{combatant.max_hp}, "
-        f"Armor {combatant.armor}"
+        f"Armor {combatant.armor}, Status {format_statuses(snapshot_value.statuses)}"
     )
 
 

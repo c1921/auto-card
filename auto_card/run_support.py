@@ -4,7 +4,12 @@ import random
 from collections import Counter
 from collections.abc import Callable, Sequence
 
-from auto_card.content import CARD_ORDER, NORMAL_ENEMY_IDS, get_enemy_definition
+from auto_card.content import (
+    BOSS_ENEMY_ID,
+    CARD_ORDER,
+    NORMAL_ENEMY_IDS,
+    get_enemy_definition,
+)
 from auto_card.models import BattleResult, EnemyDefinition, RunBattleRecord, RunBattleType
 
 LogEmitter = Callable[[str], None]
@@ -65,7 +70,7 @@ def format_card_list(
 
 def choose_enemy(*, battle_type: RunBattleType, rng: random.Random) -> EnemyDefinition:
     if battle_type == "boss":
-        return get_enemy_definition("boss")
+        return get_enemy_definition(BOSS_ENEMY_ID)
     enemy_id = rng.choice(NORMAL_ENEMY_IDS)
     return get_enemy_definition(enemy_id)
 

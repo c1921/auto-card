@@ -1,0 +1,30 @@
+[[cards]]
+id = "venom_cut"
+name = "Venom Cut"
+sort_order = 90
+charge_turns = 1
+pools = ["alchemist"]
+
+[[cards.effects]]
+kind = "damage"
+target = "opponent"
+value = 4
+
+[[cards.effects]]
+kind = "apply_status"
+target = "opponent"
+status = "poison"
+value = 3
+
+[[cards]]
+id = "toxic_brew"
+name = "Toxic Brew"
+sort_order = 100
+charge_turns = 2
+pools = ["alchemist"]
+
+[[cards.effects]]
+kind = "apply_status"
+target = "opponent"
+status = "poison"
+value = 5

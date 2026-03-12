@@ -24,12 +24,11 @@ from auto_card.battle_reporting import (
     snapshot,
 )
 from auto_card.content import (
-    PLAYER_MAX_HP,
+    DEFAULT_ROLE,
     PLAYER_NAME,
     PLAYER_STARTING_ARMOR,
-    PLAYER_STARTING_HP,
-    TEST_DECK,
     get_enemy_definition,
+    get_role_definition,
 )
 from auto_card.models import (
     BattleReplay,
@@ -39,6 +38,7 @@ from auto_card.models import (
     Combatant,
     EnemyActionKind,
     EnemyDefinition,
+    RoleDefinition,
 )
 
 EnemyActionPicker = Callable[[EnemyDefinition, random.Random], EnemyActionKind]
@@ -58,12 +58,20 @@ class BattleSimulationArtifacts:
     replay: BattleReplay
 
 
-def simulate_battle(enemy_id: str, seed: int = 0) -> BattleResult:
+def simulate_battle(
+    enemy_id: str,
+    seed: int = 0,
+    *,
+    role_id: str | None = None,
+) -> BattleResult:
+    role_definition = get_role_definition(role_id or DEFAULT_ROLE.id)
     enemy_definition = get_enemy_definition(enemy_id)
     return run_battle(
-        deck_ids=TEST_DECK,
+        deck_ids=role_definition.starting_deck,
         enemy_definition=enemy_definition,
         seed=seed,
+        role_definition=role_definition,
+        player_start_hp=role_definition.starting_hp,
     )
 
 
@@ -71,10 +79,11 @@ def run_battle(
     deck_ids: Sequence[str],
     enemy_definition: EnemyDefinition,
     seed: int,
-    player_start_hp: int = PLAYER_STARTING_HP,
+    player_start_hp: int | None = None,
     enemy_action_picker: EnemyActionPicker | None = None,
     max_turns: int | None = None,
     shuffle_deck: bool = True,
+    role_definition: RoleDefinition | None = None,
 ) -> BattleResult:
     return _simulate_battle(
         deck_ids=deck_ids,
@@ -84,6 +93,7 @@ def run_battle(
         enemy_action_picker=enemy_action_picker,
         max_turns=max_turns,
         shuffle_deck=shuffle_deck,
+        role_definition=role_definition or DEFAULT_ROLE,
     ).result
 
 
@@ -91,10 +101,11 @@ def run_battle_replay(
     deck_ids: Sequence[str],
     enemy_definition: EnemyDefinition,
     seed: int,
-    player_start_hp: int = PLAYER_STARTING_HP,
+    player_start_hp: int | None = None,
     enemy_action_picker: EnemyActionPicker | None = None,
     max_turns: int | None = None,
     shuffle_deck: bool = True,
+    role_definition: RoleDefinition | None = None,
 ) -> BattleReplay:
     return _simulate_battle(
         deck_ids=deck_ids,
@@ -104,6 +115,7 @@ def run_battle_replay(
         enemy_action_picker=enemy_action_picker,
         max_turns=max_turns,
         shuffle_deck=shuffle_deck,
+        role_definition=role_definition or DEFAULT_ROLE,
     ).replay
 
 
@@ -112,20 +124,24 @@ def _simulate_battle(
     deck_ids: Sequence[str],
     enemy_definition: EnemyDefinition,
     seed: int,
-    player_start_hp: int,
+    player_start_hp: int | None,
     enemy_action_picker: EnemyActionPicker | None,
     max_turns: int | None,
     shuffle_deck: bool,
+    role_definition: RoleDefinition,
 ) -> BattleSimulationArtifacts:
     normalized_deck = tuple(deck_ids)
     validate_deck(normalized_deck)
-    validate_player_start_hp(player_start_hp)
+    effective_player_start_hp = (
+        role_definition.starting_hp if player_start_hp is None else player_start_hp
+    )
+    validate_player_start_hp(effective_player_start_hp, role_definition.max_hp)
 
     rng = random.Random(seed)
     player = Combatant(
         name=PLAYER_NAME,
-        max_hp=PLAYER_MAX_HP,
-        hp=player_start_hp,
+        max_hp=role_definition.max_hp,
+        hp=effective_player_start_hp,
         armor=PLAYER_STARTING_ARMOR,
     )
     enemy = Combatant(
@@ -176,7 +192,7 @@ def _simulate_battle(
             log_lines.append(build_enemy_zero_hp_line(enemy.name))
 
         enemy_action = pick_enemy_action(enemy_definition, rng)
-        enemy_action_summary = resolve_enemy_phase(
+        enemy_phase = resolve_enemy_phase(
             enemy_definition=enemy_definition,
             enemy=enemy,
             player=player,
@@ -205,8 +221,9 @@ def _simulate_battle(
                 discard_pile_count=len(discard_pile),
                 active_card=player_phase.active_card,
                 is_charge_blocked=charge_state is not None,
-                enemy_action=enemy_action,
-                enemy_action_summary=enemy_action_summary,
+                enemy_action=enemy_phase.action_id,
+                enemy_action_name=enemy_phase.action_name,
+                enemy_action_summary=enemy_phase.summary,
                 log_lines=tuple(log_lines[turn_log_start:]),
             )
         )
@@ -223,6 +240,7 @@ def _simulate_battle(
                 normalized_deck=normalized_deck,
                 opening_log_lines=opening_log_lines,
                 frames=frames,
+                role_id=role_definition.id,
             )
 
         if max_turns is not None and turn >= max_turns:
@@ -243,6 +261,7 @@ def _build_battle_artifacts(
     normalized_deck: tuple[str, ...],
     opening_log_lines: tuple[str, ...],
     frames: list[BattleTurnFrame],
+    role_id: str,
 ) -> BattleSimulationArtifacts:
     result = BattleResult(
         outcome=outcome,
@@ -252,6 +271,7 @@ def _build_battle_artifacts(
         log_lines=tuple(log_lines),
         seed=seed,
         enemy_id=enemy_id,
+        role_id=role_id,
     )
     return BattleSimulationArtifacts(
         result=result,

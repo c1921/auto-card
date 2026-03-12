@@ -108,6 +108,7 @@ class BattleScreen(Screen[None]):
                 player=player,
                 battle_number=session.battle_number,
                 total_battles=session.total_battles,
+                role=session.role,
             )
         )
         self.query_one("#enemy-panel", Static).update(build_enemy_panel_text(enemy))

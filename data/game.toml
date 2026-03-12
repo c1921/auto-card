@@ -1,0 +1,9 @@
+player_name = "Player"
+starting_armor = 0
+run_deck_size = 10
+normal_battle_count = 5
+total_battle_count = 6
+reward_option_count = 3
+default_role_id = "adventurer"
+normal_enemy_ids = ["bruiser", "guard", "priest"]
+boss_enemy_id = "boss"

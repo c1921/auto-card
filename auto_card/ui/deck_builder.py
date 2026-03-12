@@ -54,6 +54,11 @@ class DeckBuilderScreen(Screen[None]):
             collection_table.move_cursor(row=0)
         collection_table.focus()
 
+    def reset(self) -> None:
+        self._selected_deck = []
+        self._collection_row_ids = []
+        self._deck_row_ids = []
+
     def on_key(self, event: events.Key) -> None:
         focused = self.app.focused
         if event.key == "a" and focused is self.query_one("#collection-table", DataTable):

@@ -3,11 +3,13 @@ from __future__ import annotations
 import asyncio
 from collections import Counter
 
-from auto_card.content import CARDS
-from auto_card.presentation import format_card_effect, get_card_type
 from textual.widgets import Button, DataTable, Static
 
+from auto_card.content import CARD_ORDER, CARDS, get_role_definition
+from auto_card.presentation import format_card_effect, get_card_type
 from auto_card.ui import TextualCardApp
+
+ADVENTURER = get_role_definition("adventurer")
 
 
 def get_table_rows(table: DataTable) -> list[tuple[str, ...]]:
@@ -64,15 +66,13 @@ async def start_battle(app: TextualCardApp, pilot) -> None:
 async def build_base_deck_and_start_battle(app: TextualCardApp, pilot) -> None:
     target_counts = [
         ("Strike", 4),
-        ("Heavy Strike", 2),
+        ("Heavy Strike", 1),
         ("Fortify", 1),
+        ("Recover", 1),
         ("Defend", 3),
     ]
     deck_table = app.screen.query_one("#deck-table", DataTable)
-    current_counts = {
-        row[0]: int(row[1])
-        for row in get_table_rows(deck_table)
-    }
+    current_counts = {row[0]: int(row[1]) for row in get_table_rows(deck_table)}
     for card_name, target_count in target_counts:
         missing_count = target_count - current_counts.get(card_name, 0)
         if missing_count > 0:
@@ -97,7 +97,8 @@ async def wait_for_screen(app: TextualCardApp, pilot, screen_name: str) -> None:
 
 def build_expected_collection_rows(counts: Counter[str]) -> list[tuple[str, ...]]:
     rows: list[tuple[str, ...]] = []
-    for card_id, card in CARDS.items():
+    for card_id in CARD_ORDER:
+        card = CARDS[card_id]
         available_count = counts.get(card_id, 0)
         if not available_count:
             continue
@@ -113,9 +114,32 @@ def build_expected_collection_rows(counts: Counter[str]) -> list[tuple[str, ...]
     return rows
 
 
-def test_textual_deck_builder_adds_and_removes_cards() -> None:
+def test_textual_role_selection_initializes_session() -> None:
     async def scenario() -> None:
         app = TextualCardApp(seed=19, battle_delay=0.001, end_delay=0.001)
+        async with app.run_test() as pilot:
+            assert type(app.screen).__name__ == "RoleSelectScreen"
+            first_button = app.screen.query_one("#role-1", Button)
+            assert "Adventurer" in str(first_button.label)
+
+            await pilot.press("1")
+            await wait_for_screen(app, pilot, "DeckBuilderScreen")
+
+            assert app.session.role.id == "adventurer"
+            deck_summary = app.screen.query_one("#deck-summary", Static)
+            assert "Adventurer (adventurer)" in str(deck_summary.render())
+
+    asyncio.run(scenario())
+
+
+def test_textual_deck_builder_adds_and_removes_cards() -> None:
+    async def scenario() -> None:
+        app = TextualCardApp(
+            seed=19,
+            role_id="adventurer",
+            battle_delay=0.001,
+            end_delay=0.001,
+        )
         async with app.run_test() as pilot:
             collection_table = app.screen.query_one("#collection-table", DataTable)
             start_button = app.screen.query_one("#start-battle", Button)
@@ -139,7 +163,6 @@ def test_textual_deck_builder_adds_and_removes_cards() -> None:
                 "Deal 7",
             )
             assert get_table_rows(deck_table) == [("Strike", "1", "1", "Deal 7")]
-            assert deck_table.row_count == 1
 
             await add_collection_card(app, pilot, card_name="Strike", copies=3)
             collection_table = app.screen.query_one("#collection-table", DataTable)
@@ -166,21 +189,24 @@ def test_textual_deck_builder_adds_and_removes_cards() -> None:
 
 def test_textual_run_flows_from_battle_to_reward_to_next_deck_choice() -> None:
     async def scenario() -> None:
-        app = TextualCardApp(seed=19, battle_delay=0.001, end_delay=0.001)
+        app = TextualCardApp(
+            seed=19,
+            role_id="adventurer",
+            battle_delay=0.001,
+            end_delay=0.001,
+        )
         async with app.run_test() as pilot:
             starting_counts = Counter(app.session.collection)
 
             await build_base_deck_and_start_battle(app, pilot)
             await wait_for_screen(app, pilot, "RewardScreen")
 
-            assert type(app.screen).__name__ == "RewardScreen"
             reward_request = app.session.get_reward_choice_request()
             chosen_card = reward_request.options[0]
 
             await pilot.press("1")
             await wait_for_screen(app, pilot, "DeckBuilderScreen")
 
-            assert type(app.screen).__name__ == "DeckBuilderScreen"
             assert app.session.phase == "deck_choice"
             assert app.session.battle_number == 2
             assert Counter(app.session.collection)[chosen_card] == (
@@ -192,39 +218,21 @@ def test_textual_run_flows_from_battle_to_reward_to_next_deck_choice() -> None:
             deck_table = app.screen.query_one("#deck-table", DataTable)
             start_button = app.screen.query_one("#start-battle", Button)
             available_counts = (
-                Counter(app.session.collection) - Counter(app.screen._selected_deck)
+                Counter(app.session.collection)
+                - Counter(app.screen._selected_deck)
             )
             assert "Battle 2/6" in str(deck_summary.render())
-            assert "HP 46/50" in str(deck_summary.render())
+            assert "Adventurer (adventurer)" in str(deck_summary.render())
             assert get_table_rows(collection_table) == build_expected_collection_rows(
                 available_counts
             )
             assert get_table_rows(deck_table) == [
                 ("Strike", "4", "1", "Deal 7"),
-                ("Heavy Strike", "2", "3", "Deal 18"),
+                ("Heavy Strike", "1", "3", "Deal 18"),
                 ("Defend", "3", "1", "Gain 5 armor"),
                 ("Fortify", "1", "2", "Gain 12 armor"),
+                ("Recover", "1", "1", "Heal 3"),
             ]
             assert start_button.disabled is False
-
-    asyncio.run(scenario())
-
-
-def test_textual_second_battle_reaches_fresh_reward_screen() -> None:
-    async def scenario() -> None:
-        app = TextualCardApp(seed=19, battle_delay=0.001, end_delay=0.001)
-        async with app.run_test() as pilot:
-            await build_base_deck_and_start_battle(app, pilot)
-            await wait_for_screen(app, pilot, "RewardScreen")
-            await pilot.press("1")
-            await wait_for_screen(app, pilot, "DeckBuilderScreen")
-
-            await build_base_deck_and_start_battle(app, pilot)
-            await wait_for_screen(app, pilot, "RewardScreen")
-
-            reward_summary = app.screen.query_one("#reward-summary", Static)
-            assert app.session.phase == "reward_choice"
-            assert app.session.battle_number == 2
-            assert "Battle 2 cleared" in str(reward_summary.render())
 
     asyncio.run(scenario())

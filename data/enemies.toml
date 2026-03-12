@@ -1,0 +1,139 @@
+[[enemies]]
+id = "bruiser"
+name = "Bruiser"
+max_hp = 45
+
+[[enemies.actions]]
+id = "attack"
+name = "Swing"
+weight = 70
+
+[[enemies.actions.effects]]
+kind = "damage"
+target = "opponent"
+value = 7
+
+[[enemies.actions]]
+id = "defend"
+name = "Brace"
+weight = 20
+
+[[enemies.actions.effects]]
+kind = "armor"
+target = "self"
+value = 4
+
+[[enemies.actions]]
+id = "heal"
+name = "Catch Breath"
+weight = 10
+
+[[enemies.actions.effects]]
+kind = "heal"
+target = "self"
+value = 2
+
+[[enemies]]
+id = "guard"
+name = "Guard"
+max_hp = 55
+
+[[enemies.actions]]
+id = "attack"
+name = "Jab"
+weight = 35
+
+[[enemies.actions.effects]]
+kind = "damage"
+target = "opponent"
+value = 5
+
+[[enemies.actions]]
+id = "defend"
+name = "Shield Up"
+weight = 40
+
+[[enemies.actions.effects]]
+kind = "armor"
+target = "self"
+value = 5
+
+[[enemies.actions]]
+id = "heal"
+name = "Rally"
+weight = 15
+
+[[enemies.actions.effects]]
+kind = "heal"
+target = "self"
+value = 2
+
+[[enemies]]
+id = "priest"
+name = "Priest"
+max_hp = 42
+
+[[enemies.actions]]
+id = "attack"
+name = "Smite"
+weight = 30
+
+[[enemies.actions.effects]]
+kind = "damage"
+target = "opponent"
+value = 4
+
+[[enemies.actions]]
+id = "defend"
+name = "Ward"
+weight = 20
+
+[[enemies.actions.effects]]
+kind = "armor"
+target = "self"
+value = 4
+
+[[enemies.actions]]
+id = "heal"
+name = "Mend"
+weight = 40
+
+[[enemies.actions.effects]]
+kind = "heal"
+target = "self"
+value = 3
+
+[[enemies]]
+id = "boss"
+name = "Boss"
+max_hp = 72
+
+[[enemies.actions]]
+id = "attack"
+name = "Crushing Blow"
+weight = 40
+
+[[enemies.actions.effects]]
+kind = "damage"
+target = "opponent"
+value = 8
+
+[[enemies.actions]]
+id = "defend"
+name = "Iron Wall"
+weight = 30
+
+[[enemies.actions.effects]]
+kind = "armor"
+target = "self"
+value = 6
+
+[[enemies.actions]]
+id = "heal"
+name = "Dark Prayer"
+weight = 30
+
+[[enemies.actions.effects]]
+kind = "heal"
+target = "self"
+value = 4

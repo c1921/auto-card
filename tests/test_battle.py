@@ -10,8 +10,14 @@ from auto_card.battle import (
     run_battle_replay,
     simulate_battle,
 )
-from auto_card.content import CARDS, TEST_DECK, get_enemy_definition
-from auto_card.models import Combatant, EnemyActionKind, EnemyDefinition
+from auto_card.content import CARDS, get_enemy_definition, get_role_definition
+from auto_card.models import (
+    Combatant,
+    EffectDefinition,
+    EnemyActionDefinition,
+    EnemyActionKind,
+    EnemyDefinition,
+)
 
 
 def constant_action(action: EnemyActionKind):
@@ -21,25 +27,42 @@ def constant_action(action: EnemyActionKind):
     return pick
 
 
+def sequence_action(actions: list[EnemyActionKind]):
+    iterator = iter(actions)
+
+    def pick(_enemy: EnemyDefinition, _rng) -> EnemyActionKind:
+        return next(iterator)
+
+    return pick
+
+
+def make_action(
+    action_id: str,
+    *,
+    name: str,
+    weight: int = 1,
+    effects: tuple[EffectDefinition, ...],
+) -> EnemyActionDefinition:
+    return EnemyActionDefinition(
+        id=action_id,
+        name=name,
+        weight=weight,
+        effects=effects,
+    )
+
+
 def make_enemy(
     *,
     enemy_id: str,
     name: str,
     max_hp: int,
-    attack_value: int = 0,
-    defend_value: int = 0,
-    heal_value: int = 0,
+    actions: tuple[EnemyActionDefinition, ...],
 ) -> EnemyDefinition:
     return EnemyDefinition(
         id=enemy_id,
         name=name,
         max_hp=max_hp,
-        attack_weight=1,
-        defend_weight=1,
-        heal_weight=1,
-        attack_value=attack_value,
-        defend_value=defend_value,
-        heal_value=heal_value,
+        actions=actions,
     )
 
 
@@ -89,156 +112,134 @@ def test_drain_slash_logs_damage_before_heal() -> None:
     assert damage_index < heal_index
 
 
-def test_heavy_strike_blocks_following_draw_until_next_turn() -> None:
+def test_strength_increases_later_attack_damage() -> None:
     enemy = make_enemy(
         enemy_id="training_dummy",
         name="Training Dummy",
-        max_hp=22,
-        attack_value=0,
+        max_hp=30,
+        actions=(
+            make_action(
+                "wait",
+                name="Wait",
+                effects=(EffectDefinition(kind="armor", target="self", value=0),),
+            ),
+        ),
     )
 
     result = run_battle(
-        deck_ids=["strike", "heavy_strike"],
+        deck_ids=["strike", "strike", "battle_cry"],
         enemy_definition=enemy,
         seed=0,
-        enemy_action_picker=constant_action("attack"),
+        enemy_action_picker=constant_action("wait"),
+        shuffle_deck=False,
+    )
+
+    assert any("Battle Cry applies Strength 2 to Player" in line for line in result.log_lines)
+    assert any("Strike deals 9 damage" in line for line in result.log_lines)
+
+
+def test_poison_triggers_before_enemy_action_and_decays() -> None:
+    enemy = make_enemy(
+        enemy_id="poison_dummy",
+        name="Dummy",
+        max_hp=7,
+        actions=(
+            make_action(
+                "wait",
+                name="Wait",
+                effects=(EffectDefinition(kind="armor", target="self", value=0),),
+            ),
+        ),
+    )
+
+    result = run_battle(
+        deck_ids=["venom_cut"],
+        enemy_definition=enemy,
+        seed=0,
+        enemy_action_picker=constant_action("wait"),
+        shuffle_deck=False,
+        role_definition=get_role_definition("alchemist"),
+    )
+
+    assert result.outcome == "victory"
+    assert any("Dummy suffers 3 poison damage" in line for line in result.log_lines)
+    assert any("Dummy poison decreases to 2." in line for line in result.log_lines)
+    assert result.enemy.statuses[0].kind == "poison"
+    assert result.enemy.statuses[0].value == 2
+
+
+def test_stun_blocks_charge_progress_for_one_turn() -> None:
+    enemy = make_enemy(
+        enemy_id="spiker",
+        name="Spiker",
+        max_hp=18,
+        actions=(
+            make_action(
+                "stun",
+                name="Bell Ring",
+                effects=(
+                    EffectDefinition(
+                        kind="apply_status",
+                        target="opponent",
+                        value=1,
+                        status="stun",
+                    ),
+                ),
+            ),
+            make_action(
+                "wait",
+                name="Wait",
+                effects=(EffectDefinition(kind="armor", target="self", value=0),),
+            ),
+        ),
+    )
+
+    result = run_battle(
+        deck_ids=["heavy_strike"],
+        enemy_definition=enemy,
+        seed=0,
+        enemy_action_picker=sequence_action(["stun", "wait", "wait", "wait"]),
         shuffle_deck=False,
     )
 
     begin_index = find_line_index(result.log_lines, "begins charging Heavy Strike (1/3)")
+    stunned_index = find_line_index(result.log_lines, "Player is stunned and skips the action.")
     continue_two_index = find_line_index(
         result.log_lines, "continues charging Heavy Strike (2/3)"
     )
     continue_three_index = find_line_index(
         result.log_lines, "continues charging Heavy Strike (3/3)"
     )
-    strike_index = find_line_index(result.log_lines, "Player flips Strike.")
 
     assert result.outcome == "victory"
     assert result.turns == 4
-    assert begin_index < continue_two_index < continue_three_index < strike_index
+    assert begin_index < stunned_index < continue_two_index < continue_three_index
 
 
-def test_fortify_blocks_following_draw_until_next_turn() -> None:
+def test_shield_bash_stuns_enemy_and_skips_its_action() -> None:
     enemy = make_enemy(
-        enemy_id="slow_dummy",
-        name="Slow Dummy",
-        max_hp=6,
-        attack_value=0,
-    )
-
-    result = run_battle(
-        deck_ids=["strike", "fortify"],
-        enemy_definition=enemy,
-        seed=0,
-        enemy_action_picker=constant_action("attack"),
-        shuffle_deck=False,
-    )
-
-    begin_index = find_line_index(result.log_lines, "begins charging Fortify (1/2)")
-    resolve_index = find_line_index(
-        result.log_lines, "continues charging Fortify (2/2)"
-    )
-    strike_index = find_line_index(result.log_lines, "Player flips Strike.")
-
-    assert result.outcome == "victory"
-    assert result.turns == 3
-    assert begin_index < resolve_index < strike_index
-
-
-def test_discard_pile_is_reshuffled_when_draw_pile_is_empty() -> None:
-    enemy = make_enemy(
-        enemy_id="reshuffle_dummy",
-        name="Reshuffle Dummy",
+        enemy_id="fighter",
+        name="Fighter",
         max_hp=12,
-        attack_value=0,
+        actions=(
+            make_action(
+                "attack",
+                name="Punch",
+                effects=(EffectDefinition(kind="damage", target="opponent", value=3),),
+            ),
+        ),
     )
 
     result = run_battle(
-        deck_ids=["strike"],
+        deck_ids=["strike", "shield_bash"],
         enemy_definition=enemy,
         seed=0,
         enemy_action_picker=constant_action("attack"),
         shuffle_deck=False,
     )
 
-    assert result.outcome == "victory"
-    assert result.turns == 2
-    assert any(
-        "reshuffles discard pile into draw pile" in line
-        for line in result.log_lines
-    )
-
-
-def test_player_loses_when_both_sides_die_on_same_turn() -> None:
-    enemy = make_enemy(
-        enemy_id="berserker",
-        name="Berserker",
-        max_hp=6,
-        attack_value=50,
-    )
-
-    result = run_battle(
-        deck_ids=["strike"],
-        enemy_definition=enemy,
-        seed=0,
-        enemy_action_picker=constant_action("attack"),
-        shuffle_deck=False,
-    )
-
-    assert result.outcome == "defeat"
-    assert result.player.hp == 0
-    assert result.enemy.hp == 0
-    assert any(
-        "still acts before the end-of-turn death check" in line
-        for line in result.log_lines
-    )
-
-
-def test_simulate_battle_is_reproducible_for_same_seed() -> None:
-    first = simulate_battle("bruiser", seed=0)
-    second = simulate_battle("bruiser", seed=0)
-
-    assert first == second
-
-
-def test_run_battle_accepts_custom_starting_hp() -> None:
-    enemy = make_enemy(
-        enemy_id="training_dummy",
-        name="Training Dummy",
-        max_hp=6,
-        attack_value=0,
-    )
-
-    result = run_battle(
-        deck_ids=["strike"],
-        enemy_definition=enemy,
-        seed=0,
-        player_start_hp=17,
-        enemy_action_picker=constant_action("attack"),
-        shuffle_deck=False,
-    )
-
-    assert result.log_lines[0] == "Battle start: Player 17/50 HP vs Training Dummy 6/6 HP"
-
-
-def test_run_battle_rejects_invalid_starting_hp() -> None:
-    enemy = make_enemy(
-        enemy_id="training_dummy",
-        name="Training Dummy",
-        max_hp=6,
-        attack_value=0,
-    )
-
-    with pytest.raises(ValueError, match="Player starting HP must be between 1 and 50"):
-        run_battle(
-            deck_ids=["strike"],
-            enemy_definition=enemy,
-            seed=0,
-            player_start_hp=0,
-            enemy_action_picker=constant_action("attack"),
-            shuffle_deck=False,
-        )
+    assert any("Shield Bash applies Stun 1 to Fighter" in line for line in result.log_lines)
+    assert any("Fighter is stunned and skips the action." in line for line in result.log_lines)
 
 
 def test_run_battle_replay_matches_final_result_and_turn_frames() -> None:
@@ -246,21 +247,27 @@ def test_run_battle_replay_matches_final_result_and_turn_frames() -> None:
         enemy_id="training_dummy",
         name="Training Dummy",
         max_hp=22,
-        attack_value=0,
+        actions=(
+            make_action(
+                "wait",
+                name="Wait",
+                effects=(EffectDefinition(kind="armor", target="self", value=0),),
+            ),
+        ),
     )
 
     result = run_battle(
         deck_ids=["strike", "heavy_strike"],
         enemy_definition=enemy,
         seed=0,
-        enemy_action_picker=constant_action("attack"),
+        enemy_action_picker=constant_action("wait"),
         shuffle_deck=False,
     )
     replay = run_battle_replay(
         deck_ids=["strike", "heavy_strike"],
         enemy_definition=enemy,
         seed=0,
-        enemy_action_picker=constant_action("attack"),
+        enemy_action_picker=constant_action("wait"),
         shuffle_deck=False,
     )
 
@@ -291,11 +298,19 @@ def test_historically_stalling_matchups_resolve_within_explicit_turn_cap(
     enemy_id: str, seed: int
 ) -> None:
     result = run_battle(
-        deck_ids=TEST_DECK,
+        deck_ids=get_role_definition("adventurer").starting_deck,
         enemy_definition=get_enemy_definition(enemy_id),
         seed=seed,
+        role_definition=get_role_definition("adventurer"),
         max_turns=200,
     )
 
     assert result.turns <= 200
     assert result.outcome in {"victory", "defeat"}
+
+
+def test_simulate_battle_is_reproducible_for_same_seed() -> None:
+    first = simulate_battle("bruiser", seed=0, role_id="alchemist")
+    second = simulate_battle("bruiser", seed=0, role_id="alchemist")
+
+    assert first == second

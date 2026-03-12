@@ -8,16 +8,17 @@ from dataclasses import dataclass
 from auto_card.battle import run_battle_replay
 from auto_card.content import (
     CARDS,
-    PLAYER_MAX_HP,
-    PLAYER_STARTING_HP,
-    REWARD_CARD_IDS,
+    DEFAULT_ROLE,
+    REWARD_OPTION_COUNT,
     RUN_DECK_SIZE,
-    STARTING_COLLECTION,
     TOTAL_BATTLE_COUNT,
+    get_role_definition,
+    get_role_reward_card_ids,
 )
 from auto_card.models import (
     BattleReplay,
     EnemyDefinition,
+    RoleDefinition,
     RunBattleType,
     RunPhase,
     RunResult,
@@ -42,6 +43,7 @@ class DeckChoiceRequest:
     total_battles: int
     battle_type: RunBattleType
     enemy: EnemyDefinition
+    role: RoleDefinition
     current_hp: int
     max_hp: int
     collection: tuple[str, ...]
@@ -51,6 +53,7 @@ class DeckChoiceRequest:
 class RewardChoiceRequest:
     battle_number: int
     enemy: EnemyDefinition
+    role: RoleDefinition
     current_hp: int
     max_hp: int
     collection: tuple[str, ...]
@@ -62,13 +65,15 @@ class RunSession:
         self,
         *,
         seed: int = 0,
+        role_id: str | None = None,
         log_emitter: LogEmitter | None = None,
     ) -> None:
         self.seed = seed
         self._rng = random.Random(seed)
         self._log_emitter = log_emitter
-        self._current_hp = PLAYER_STARTING_HP
-        self._collection = list(STARTING_COLLECTION)
+        self._role = get_role_definition(role_id or DEFAULT_ROLE.id)
+        self._current_hp = self._role.starting_hp
+        self._collection = list(self._role.starting_collection)
         self._battle_records = []
         self._log_lines: list[str] = []
         self._phase: RunPhase = "deck_choice"
@@ -84,7 +89,9 @@ class RunSession:
         self._outcome: str | None = None
         self._final_battle_number = 0
 
-        self._record_line(f"Run start: Player {self._current_hp}/{PLAYER_MAX_HP} HP.")
+        self._record_line(
+            f"Run start: {self._role.name} [{self._role.id}] {self._current_hp}/{self._role.max_hp} HP."
+        )
         self._record_line(f"Seed: {seed}")
         self._record_line(
             f"Starting collection: {format_card_counts(self._collection)}"
@@ -106,6 +113,14 @@ class RunSession:
     @property
     def current_hp(self) -> int:
         return self._current_hp
+
+    @property
+    def role(self) -> RoleDefinition:
+        return self._role
+
+    @property
+    def max_hp(self) -> int:
+        return self._role.max_hp
 
     @property
     def collection(self) -> tuple[str, ...]:
@@ -158,8 +173,9 @@ class RunSession:
             total_battles=TOTAL_BATTLE_COUNT,
             battle_type=self._current_battle_type,
             enemy=self.current_enemy,
+            role=self._role,
             current_hp=self._current_hp,
-            max_hp=PLAYER_MAX_HP,
+            max_hp=self._role.max_hp,
             collection=self._current_collection_view,
         )
 
@@ -184,6 +200,7 @@ class RunSession:
             enemy_definition=self.current_enemy,
             seed=self._current_battle_seed,
             player_start_hp=self._current_hp,
+            role_definition=self._role,
         )
         self._current_battle_replay = replay
         for line in replay.result.log_lines:
@@ -227,8 +244,9 @@ class RunSession:
         return RewardChoiceRequest(
             battle_number=self._battle_number,
             enemy=self.current_enemy,
+            role=self._role,
             current_hp=self._current_hp,
-            max_hp=PLAYER_MAX_HP,
+            max_hp=self._role.max_hp,
             collection=self._reward_collection_view,
             options=self._current_reward_options,
         )
@@ -275,6 +293,7 @@ class RunSession:
             battles=tuple(self._battle_records),
             log_lines=tuple(self._log_lines),
             seed=self.seed,
+            role_id=self._role.id,
         )
 
     def _append_current_battle_record(
@@ -297,7 +316,10 @@ class RunSession:
         )
 
     def _enter_reward_choice(self) -> None:
-        reward_options = tuple(self._rng.sample(REWARD_CARD_IDS, k=3))
+        reward_pool = get_role_reward_card_ids(self._role.id)
+        reward_options = tuple(
+            self._rng.sample(reward_pool, k=REWARD_OPTION_COUNT)
+        )
         self._current_reward_options = reward_options
         self._reward_collection_view = canonicalize_card_ids(self._collection)
         self._record_line(f"Reward options: {format_card_list(reward_options)}")
@@ -326,7 +348,9 @@ class RunSession:
                 f"({self._current_battle_type})."
             )
         )
-        self._record_line(f"Current HP: {self._current_hp}/{PLAYER_MAX_HP}")
+        self._record_line(
+            f"Current HP: {self._current_hp}/{self._role.max_hp}"
+        )
         self._record_line(
             f"Collection: {format_card_counts(self._current_collection_view)}"
         )
@@ -338,11 +362,12 @@ class RunSession:
 def play_run(
     *,
     seed: int = 0,
+    role_id: str | None = None,
     deck_chooser: DeckChooser,
     reward_chooser: RewardChooser,
     log_emitter: LogEmitter | None = None,
 ) -> RunResult:
-    session = RunSession(seed=seed, log_emitter=log_emitter)
+    session = RunSession(seed=seed, role_id=role_id, log_emitter=log_emitter)
 
     while session.phase != "finished":
         deck_request = session.get_deck_choice_request()

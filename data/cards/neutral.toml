@@ -1,0 +1,76 @@
+[[cards]]
+id = "strike"
+name = "Strike"
+sort_order = 10
+charge_turns = 1
+pools = ["neutral"]
+
+[[cards.effects]]
+kind = "damage"
+target = "opponent"
+value = 7
+
+[[cards]]
+id = "heavy_strike"
+name = "Heavy Strike"
+sort_order = 20
+charge_turns = 3
+pools = ["neutral"]
+
+[[cards.effects]]
+kind = "damage"
+target = "opponent"
+value = 18
+
+[[cards]]
+id = "drain_slash"
+name = "Drain Slash"
+sort_order = 30
+charge_turns = 1
+pools = ["neutral"]
+
+[[cards.effects]]
+kind = "damage"
+target = "opponent"
+value = 4
+
+[[cards.effects]]
+kind = "heal"
+target = "self"
+value = 2
+
+[[cards]]
+id = "defend"
+name = "Defend"
+sort_order = 40
+charge_turns = 1
+pools = ["neutral"]
+
+[[cards.effects]]
+kind = "armor"
+target = "self"
+value = 5
+
+[[cards]]
+id = "fortify"
+name = "Fortify"
+sort_order = 50
+charge_turns = 2
+pools = ["neutral"]
+
+[[cards.effects]]
+kind = "armor"
+target = "self"
+value = 12
+
+[[cards]]
+id = "recover"
+name = "Recover"
+sort_order = 60
+charge_turns = 1
+pools = ["neutral"]
+
+[[cards.effects]]
+kind = "heal"
+target = "self"
+value = 3

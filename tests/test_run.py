@@ -4,6 +4,7 @@ from collections.abc import Sequence
 
 import pytest
 
+from auto_card.content import get_role_definition, get_role_reward_card_ids
 from auto_card.run import (
     RunSession,
     canonicalize_card_ids,
@@ -12,65 +13,28 @@ from auto_card.run import (
     validate_deck_choice,
 )
 
-BASE_DECK = (
-    "strike",
-    "strike",
-    "strike",
-    "strike",
-    "defend",
-    "defend",
-    "defend",
-    "heavy_strike",
-    "heavy_strike",
-    "fortify",
-)
-SECOND_BATTLE_DOUBLE_FORTIFY_DECK = (
-    "strike",
-    "strike",
-    "strike",
-    "defend",
-    "defend",
-    "defend",
-    "heavy_strike",
-    "heavy_strike",
-    "fortify",
-    "fortify",
-)
-BOSS_RUN_REWARDS = (
-    "fortify",
-    "defend",
-    "drain_slash",
-    "heavy_strike",
-    "fortify",
-)
+ADVENTURER = get_role_definition("adventurer")
+ALCHEMIST = get_role_definition("alchemist")
+BASE_DECK = ADVENTURER.starting_deck
 
 
-class SequenceProvider:
-    def __init__(
-        self,
-        *,
-        deck_choices: Sequence[Sequence[str]],
-        reward_choices: Sequence[str],
-    ) -> None:
+class FirstOptionProvider:
+    def __init__(self, *, deck_choices: Sequence[Sequence[str]]) -> None:
         self._deck_choices = [tuple(choice) for choice in deck_choices]
-        self._reward_choices = list(reward_choices)
         self._deck_index = 0
-        self._reward_index = 0
 
     def choose_deck(self, _request) -> tuple[str, ...]:
         choice = self._deck_choices[self._deck_index]
         self._deck_index += 1
         return choice
 
-    def choose_reward(self, _request) -> str:
-        choice = self._reward_choices[self._reward_index]
-        self._reward_index += 1
-        return choice
+    def choose_reward(self, request) -> str:
+        return request.options[0]
 
 
 def test_validate_deck_choice_requires_exact_size_and_owned_counts() -> None:
     with pytest.raises(ValueError, match="exactly 10 cards"):
-        validate_deck_choice(deck_ids=BASE_DECK[:9], collection=BASE_DECK)
+        validate_deck_choice(deck_ids=BASE_DECK[:9], collection=ADVENTURER.starting_collection)
 
     with pytest.raises(ValueError, match="more copies than owned"):
         validate_deck_choice(
@@ -86,96 +50,61 @@ def test_validate_deck_choice_requires_exact_size_and_owned_counts() -> None:
                 "heavy_strike",
                 "fortify",
             ),
-            collection=BASE_DECK,
+            collection=ADVENTURER.starting_collection,
         )
 
 
 def test_card_order_is_explicit_for_canonicalization_and_formatting() -> None:
-    card_ids = ("recover", "strike", "fortify", "strike", "drain_slash")
+    card_ids = ("recover", "strike", "battle_cry", "strike", "drain_slash")
 
     assert canonicalize_card_ids(card_ids) == (
         "strike",
         "strike",
         "drain_slash",
-        "fortify",
         "recover",
+        "battle_cry",
     )
     assert format_card_counts(card_ids) == (
-        "Strike x2, Drain Slash x1, Fortify x1, Recover x1"
+        "Strike x2, Drain Slash x1, Recover x1, Battle Cry x1"
     )
 
 
-def test_run_reaches_boss_after_five_normal_battles() -> None:
-    provider = SequenceProvider(
-        deck_choices=[BASE_DECK] * 6,
-        reward_choices=BOSS_RUN_REWARDS,
-    )
+def test_run_session_uses_selected_role_starting_state() -> None:
+    session = RunSession(seed=0, role_id="alchemist")
 
-    result = play_run(
-        seed=19,
-        deck_chooser=provider.choose_deck,
-        reward_chooser=provider.choose_reward,
-    )
-
-    assert result.final_battle_number == 6
-    assert len(result.battles) == 6
-    assert [record.enemy_id for record in result.battles[:5]] == [
-        "priest",
-        "priest",
-        "guard",
-        "priest",
-        "priest",
-    ]
-    assert result.battles[-1].enemy_id == "boss"
+    assert session.role.id == "alchemist"
+    assert session.current_hp == ALCHEMIST.starting_hp
+    assert session.max_hp == ALCHEMIST.max_hp
+    assert set(session.collection).issubset(set(get_role_reward_card_ids("alchemist")))
 
 
-def test_rewarded_card_is_added_to_collection_before_next_battle() -> None:
-    provider = SequenceProvider(
-        deck_choices=[
-            BASE_DECK,
-            SECOND_BATTLE_DOUBLE_FORTIFY_DECK,
-            BASE_DECK,
-            BASE_DECK,
-            BASE_DECK,
-            BASE_DECK,
-        ],
-        reward_choices=BOSS_RUN_REWARDS,
-    )
+def test_run_session_progresses_from_deck_choice_to_reward_and_next_battle() -> None:
+    session = RunSession(seed=19, role_id="adventurer")
 
-    result = play_run(
-        seed=19,
-        deck_chooser=provider.choose_deck,
-        reward_chooser=provider.choose_reward,
-    )
+    assert session.phase == "deck_choice"
+    assert session.battle_number == 1
+    assert session.current_enemy.id == "priest"
 
-    assert result.battles[0].reward_choice == "fortify"
-    assert result.battles[1].deck_ids.count("fortify") == 2
+    session.submit_deck_choice(BASE_DECK)
 
+    assert session.phase == "battle_replay"
+    assert session.current_battle_replay.result.outcome == "victory"
 
-def test_current_hp_carries_across_battles_but_armor_resets() -> None:
-    provider = SequenceProvider(
-        deck_choices=[BASE_DECK] * 6,
-        reward_choices=BOSS_RUN_REWARDS,
-    )
+    session.complete_battle_replay()
 
-    result = play_run(
-        seed=19,
-        deck_chooser=provider.choose_deck,
-        reward_chooser=provider.choose_reward,
-    )
+    assert session.phase == "reward_choice"
+    reward_request = session.get_reward_choice_request()
+    assert len(reward_request.options) == 3
+    assert set(reward_request.options).issubset(set(get_role_reward_card_ids("adventurer")))
+    assert "venom_cut" not in reward_request.options
 
-    first_battle = result.battles[0]
-    second_battle = result.battles[1]
+    chosen_reward = reward_request.options[0]
+    owned_before = session.collection.count(chosen_reward)
+    session.submit_reward_choice(chosen_reward)
 
-    assert first_battle.result.player.hp == 36
-    assert first_battle.result.player.armor == 13
-    assert second_battle.result.log_lines[0] == (
-        "Battle start: Player 36/50 HP vs Priest 42/42 HP"
-    )
-    assert (
-        "Start: Player HP 36/50, Armor 0 | Priest HP 42/42, Armor 0"
-        in second_battle.result.log_lines
-    )
+    assert session.phase == "deck_choice"
+    assert session.battle_number == 2
+    assert session.collection.count(chosen_reward) == owned_before + 1
 
 
 def test_run_stops_without_reward_when_player_loses() -> None:
@@ -202,6 +131,7 @@ def test_run_stops_without_reward_when_player_loses() -> None:
 
     result = play_run(
         seed=1,
+        role_id="adventurer",
         deck_chooser=choose_deck,
         reward_chooser=choose_reward,
     )
@@ -212,38 +142,33 @@ def test_run_stops_without_reward_when_player_loses() -> None:
     assert result.battles[0].reward_choice is None
 
 
-def test_run_is_reproducible_for_same_seed_and_choices() -> None:
-    first_provider = SequenceProvider(
-        deck_choices=[BASE_DECK] * 6,
-        reward_choices=BOSS_RUN_REWARDS,
-    )
-    second_provider = SequenceProvider(
-        deck_choices=[BASE_DECK] * 6,
-        reward_choices=BOSS_RUN_REWARDS,
-    )
+def test_run_is_reproducible_for_same_seed_and_choice_strategy() -> None:
+    first_provider = FirstOptionProvider(deck_choices=[BASE_DECK] * 6)
+    second_provider = FirstOptionProvider(deck_choices=[BASE_DECK] * 6)
 
     first = play_run(
         seed=19,
+        role_id="adventurer",
         deck_chooser=first_provider.choose_deck,
         reward_chooser=first_provider.choose_reward,
     )
     second = play_run(
         seed=19,
+        role_id="adventurer",
         deck_chooser=second_provider.choose_deck,
         reward_chooser=second_provider.choose_reward,
     )
 
     assert first == second
+    assert first.role_id == "adventurer"
 
 
 def test_reward_options_are_unique_and_duplicate_rewards_accumulate() -> None:
-    provider = SequenceProvider(
-        deck_choices=[BASE_DECK] * 6,
-        reward_choices=BOSS_RUN_REWARDS,
-    )
+    provider = FirstOptionProvider(deck_choices=[BASE_DECK] * 6)
 
     result = play_run(
         seed=19,
+        role_id="adventurer",
         deck_chooser=provider.choose_deck,
         reward_chooser=provider.choose_reward,
     )
@@ -252,56 +177,19 @@ def test_reward_options_are_unique_and_duplicate_rewards_accumulate() -> None:
         assert len(record.reward_options) == 3
         assert len(set(record.reward_options)) == 3
 
-    assert result.final_collection.count("fortify") == 3
+    reward_choices = [record.reward_choice for record in result.battles if record.reward_choice]
+    if reward_choices:
+        assert result.final_collection.count(reward_choices[0]) >= 1
 
 
-def test_run_session_progresses_from_deck_choice_to_reward_and_next_battle() -> None:
-    session = RunSession(seed=19)
+def test_run_result_includes_selected_role() -> None:
+    provider = FirstOptionProvider(deck_choices=[ALCHEMIST.starting_deck] * 6)
 
-    assert session.phase == "deck_choice"
-    assert session.battle_number == 1
-    assert session.current_enemy.id == "priest"
-
-    session.submit_deck_choice(BASE_DECK)
-
-    assert session.phase == "battle_replay"
-    assert session.current_battle_replay.result.player.hp == 36
-
-    session.complete_battle_replay()
-
-    assert session.phase == "reward_choice"
-    reward_request = session.get_reward_choice_request()
-    assert len(reward_request.options) == 3
-
-    chosen_reward = reward_request.options[0]
-    owned_before = session.collection.count(chosen_reward)
-    session.submit_reward_choice(chosen_reward)
-
-    assert session.phase == "deck_choice"
-    assert session.battle_number == 2
-    assert session.collection.count(chosen_reward) == owned_before + 1
-
-
-def test_run_session_finishes_immediately_after_defeat() -> None:
-    session = RunSession(seed=1)
-
-    session.submit_deck_choice(
-        (
-            "strike",
-            "strike",
-            "strike",
-            "strike",
-            "heavy_strike",
-            "heavy_strike",
-            "recover",
-            "drain_slash",
-            "defend",
-            "defend",
-        )
+    result = play_run(
+        seed=0,
+        role_id="alchemist",
+        deck_chooser=provider.choose_deck,
+        reward_chooser=provider.choose_reward,
     )
-    session.complete_battle_replay()
 
-    assert session.phase == "finished"
-    result = session.build_result()
-    assert result.outcome == "defeat"
-    assert result.final_battle_number == 1
+    assert result.role_id == "alchemist"

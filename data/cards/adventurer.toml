@@ -1,0 +1,30 @@
+[[cards]]
+id = "battle_cry"
+name = "Battle Cry"
+sort_order = 70
+charge_turns = 1
+pools = ["adventurer"]
+
+[[cards.effects]]
+kind = "apply_status"
+target = "self"
+status = "strength"
+value = 2
+
+[[cards]]
+id = "shield_bash"
+name = "Shield Bash"
+sort_order = 80
+charge_turns = 2
+pools = ["adventurer"]
+
+[[cards.effects]]
+kind = "damage"
+target = "opponent"
+value = 5
+
+[[cards.effects]]
+kind = "apply_status"
+target = "opponent"
+status = "stun"
+value = 1
