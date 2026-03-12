@@ -7,15 +7,15 @@ from textual.screen import Screen
 from textual.widgets import Button, Static
 
 from auto_card.content import ROLES
+from auto_card.i18n import _
 from auto_card.ui.helpers import build_role_button_label
 
 
 class RoleSelectScreen(Screen[None]):
     def compose(self) -> ComposeResult:
-        yield Static("Choose Your Role", id="screen-title")
+        yield Static(id="screen-title")
         with Vertical(id="role-layout"):
             yield Static(
-                "Pick a role to initialize its starting collection and reward pool.",
                 id="role-summary",
                 classes="panel",
             )
@@ -27,7 +27,11 @@ class RoleSelectScreen(Screen[None]):
                         variant="primary",
                     )
 
+    def on_mount(self) -> None:
+        self.refresh_text()
+
     def on_screen_resume(self) -> None:
+        self.refresh_text()
         for index, role in enumerate(ROLES.values(), start=1):
             button = self.query_one(f"#role-{index}", Button)
             button.label = build_role_button_label(index=index, role=role)
@@ -47,3 +51,9 @@ class RoleSelectScreen(Screen[None]):
     def _choose(self, option_index: int) -> None:
         role = list(ROLES.values())[option_index - 1]
         self.app.select_role(role.id)
+
+    def refresh_text(self) -> None:
+        self.query_one("#screen-title", Static).update(_("Choose Your Role"))
+        self.query_one("#role-summary", Static).update(
+            _("Pick a role to initialize its starting collection and reward pool.")
+        )

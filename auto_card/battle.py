@@ -30,6 +30,7 @@ from auto_card.content import (
     get_enemy_definition,
     get_role_definition,
 )
+from auto_card.i18n import _
 from auto_card.models import (
     BattleReplay,
     BattleResult,
@@ -139,13 +140,13 @@ def _simulate_battle(
 
     rng = random.Random(seed)
     player = Combatant(
-        name=PLAYER_NAME,
+        name=_(PLAYER_NAME),
         max_hp=role_definition.max_hp,
         hp=effective_player_start_hp,
         armor=PLAYER_STARTING_ARMOR,
     )
     enemy = Combatant(
-        name=enemy_definition.name,
+        name=_(enemy_definition.name),
         max_hp=enemy_definition.max_hp,
         hp=enemy_definition.max_hp,
         armor=0,
@@ -203,7 +204,10 @@ def _simulate_battle(
         player_end = snapshot(player)
         enemy_end = snapshot(enemy)
         log_lines.append(
-            f"End: {format_combatant(player)} | {format_combatant(enemy)}"
+            _("End: {player} | {enemy}").format(
+                player=format_combatant(player),
+                enemy=format_combatant(enemy),
+            )
         )
 
         outcome = determine_outcome(player, enemy)
@@ -245,7 +249,9 @@ def _simulate_battle(
 
         if max_turns is not None and turn >= max_turns:
             raise RuntimeError(
-                f"Battle exceeded {max_turns} turns without reaching a result."
+                _("Battle exceeded {max_turns} turns without reaching a result.").format(
+                    max_turns=max_turns
+                )
             )
 
 

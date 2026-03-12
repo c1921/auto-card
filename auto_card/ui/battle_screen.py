@@ -5,6 +5,7 @@ from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
 from textual.widgets import RichLog, Static
 
+from auto_card.i18n import _
 from auto_card.models import ActiveCardSnapshot, CombatantSnapshot
 from auto_card.ui.helpers import (
     build_current_card_text,
@@ -21,7 +22,7 @@ class BattleScreen(Screen[None]):
         self._is_running = False
 
     def compose(self) -> ComposeResult:
-        yield Static("Battle Replay", id="screen-title")
+        yield Static(id="screen-title")
         with Vertical(id="battle-layout"):
             with Horizontal(id="battle-top"):
                 yield Static(id="player-panel", classes="panel stat-card")
@@ -30,10 +31,14 @@ class BattleScreen(Screen[None]):
             with Horizontal(id="battle-bottom"):
                 yield Static(id="deck-panel", classes="panel")
                 with Vertical(id="battle-log-panel", classes="panel"):
-                    yield Static("Combat Log", classes="section-title")
+                    yield Static(id="battle-log-title", classes="section-title")
                     yield RichLog(id="battle-log", wrap=True, highlight=True, markup=False)
 
+    def on_mount(self) -> None:
+        self.refresh_text()
+
     def on_screen_resume(self) -> None:
+        self.refresh_text()
         self._frame_index = 0
         self._is_running = True
         replay = self.app.session.current_battle_replay
@@ -111,7 +116,9 @@ class BattleScreen(Screen[None]):
                 role=session.role,
             )
         )
-        self.query_one("#enemy-panel", Static).update(build_enemy_panel_text(enemy))
+        self.query_one("#enemy-panel", Static).update(
+            build_enemy_panel_text(enemy, enemy_name=session.current_enemy.name)
+        )
 
     def _update_current_card(self, active_card: ActiveCardSnapshot | None) -> None:
         self.query_one("#current-card-panel", Static).update(
@@ -133,4 +140,37 @@ class BattleScreen(Screen[None]):
                 is_charge_blocked=is_charge_blocked,
                 deck_ids=replay.deck_ids,
             )
+        )
+
+    def refresh_text(self) -> None:
+        self.query_one("#screen-title", Static).update(_("Battle Replay"))
+        self.query_one("#battle-log-title", Static).update(_("Combat Log"))
+        if self.app._session is None or self.app.session.phase != "battle_replay":
+            return
+        replay = self.app.session.current_battle_replay
+        frame_index = min(self._frame_index, len(replay.frames))
+        if frame_index == 0:
+            first_frame = replay.frames[0]
+            self._update_combatant_panels(
+                player=first_frame.player_start,
+                enemy=first_frame.enemy_start,
+            )
+            self._update_current_card(None)
+            self._update_deck_panel(
+                draw_pile_count=len(replay.deck_ids),
+                discard_pile_count=0,
+                is_charge_blocked=False,
+            )
+            return
+
+        frame = replay.frames[frame_index - 1]
+        self._update_combatant_panels(
+            player=frame.player_end,
+            enemy=frame.enemy_end,
+        )
+        self._update_current_card(frame.active_card)
+        self._update_deck_panel(
+            draw_pile_count=frame.draw_pile_count,
+            discard_pile_count=frame.discard_pile_count,
+            is_charge_blocked=frame.is_charge_blocked,
         )

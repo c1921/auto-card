@@ -1,0 +1,759 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: auto_card 0.1.0\n"
+"Language: zh_CN\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+msgid "usage: "
+msgstr "用法："
+
+msgid "options"
+msgstr "选项"
+
+msgid "show this help message and exit"
+msgstr "显示此帮助信息并退出"
+
+msgid "'deck_choices' must be a JSON array."
+msgstr "'deck_choices' 必须是 JSON 数组。"
+
+msgid "'deck_choices[{index}]' must be an array of card ids."
+msgstr "'deck_choices[{index}]' 必须是卡牌 id 数组。"
+
+msgid "'reward_choices' must be an array of card ids."
+msgstr "'reward_choices' 必须是卡牌 id 数组。"
+
+msgid "'role' must be a string if provided."
+msgstr "如果提供了 'role'，它必须是字符串。"
+
+msgid "'role' must be one of: {valid}."
+msgstr "'role' 必须是以下值之一：{valid}。"
+
+msgid "Adventurer"
+msgstr "冒险者"
+
+msgid "Alchemist"
+msgstr "炼金术士"
+
+msgid "Apply Poison {value}"
+msgstr "施加中毒 {value}"
+
+msgid "Apply Stun"
+msgstr "施加眩晕"
+
+msgid "Attack"
+msgstr "攻击"
+
+msgid "Auto Card"
+msgstr "Auto Card"
+
+msgid "Available"
+msgstr "可用"
+
+msgid "Balanced fighter with reliable neutral cards and crowd-control rewards."
+msgstr "均衡型战士，依赖稳定的中立牌与控制型奖励。"
+
+msgid "Battle Cry"
+msgstr "战吼"
+
+msgid "Battle Deck"
+msgstr "战斗卡组"
+
+msgid "Battle Deck Builder"
+msgstr "战斗组牌"
+
+msgid "Battle Replay"
+msgstr "战斗回放"
+
+msgid "Battle exceeded {max_turns} turns without reaching a result."
+msgstr "战斗超过 {max_turns} 回合仍未结束。"
+
+msgid "Battle replay cannot be completed during phase '{phase}'."
+msgstr "在阶段 '{phase}' 中无法完成战斗回放。"
+
+msgid "Battle replay is not available."
+msgstr "当前没有可用的战斗回放。"
+
+msgid "Battle seed: {battle_seed}"
+msgstr "战斗种子：{battle_seed}"
+
+msgid "Battle start: {player_name} {player_hp}/{player_max_hp} HP vs {enemy_name} {enemy_hp}/{enemy_max_hp} HP"
+msgstr "战斗开始：{player_name} {player_hp}/{player_max_hp} HP 对阵 {enemy_name} {enemy_hp}/{enemy_max_hp} HP"
+
+msgid "Battle {battle_number}/{total_battles}: {enemy_name} [{enemy_id}] ({battle_type})."
+msgstr "战斗 {battle_number}/{total_battles}：{enemy_name} [{enemy_id}]（{battle_type}）。"
+
+msgid "Boss"
+msgstr "首领"
+
+msgid "Brace"
+msgstr "架势"
+
+msgid "Bruiser"
+msgstr "莽汉"
+
+msgid "Build deck for battle {battle_number}/{total_battles} against {enemy_name} [{enemy_id}] as {role_name} [{role_id}]."
+msgstr "为第 {battle_number}/{total_battles} 场战斗组牌，对手是 {enemy_name} [{enemy_id}]，职业为 {role_name} [{role_id}]。"
+
+msgid "Catch Breath"
+msgstr "喘息"
+
+msgid "Charge"
+msgstr "蓄力"
+
+msgid "Charging"
+msgstr "蓄力中"
+
+msgid "Choose One Reward"
+msgstr "选择一个奖励"
+
+msgid "Choose Your Role"
+msgstr "选择你的职业"
+
+msgid "Choose a reward after battle {battle_number} against {enemy_name} for {role_name}:"
+msgstr "在对抗 {enemy_name} 的第 {battle_number} 场战斗后，为 {role_name} 选择一个奖励："
+
+msgid "Chosen deck: {deck}"
+msgstr "已选卡组：{deck}"
+
+msgid "Collection"
+msgstr "收藏"
+
+msgid "Collection now: {collection}"
+msgstr "当前收藏：{collection}"
+
+msgid "Collection:"
+msgstr "收藏："
+
+msgid "Collection: {collection}"
+msgstr "收藏：{collection}"
+
+msgid "Combat Log"
+msgstr "战斗日志"
+
+msgid "Complete"
+msgstr "完成"
+
+msgid "Content validation failed:\n- missing game config."
+msgstr "内容校验失败：\n- 缺少 game 配置。"
+
+msgid "Content validation failed:\n{message}"
+msgstr "内容校验失败：\n{message}"
+
+msgid "Content validation passed."
+msgstr "内容校验通过。"
+
+msgid "Count"
+msgstr "数量"
+
+msgid "Crushing Blow"
+msgstr "粉碎重击"
+
+msgid "Current Card\nWaiting for the next draw."
+msgstr "当前卡牌\n等待下一次抽牌。"
+
+msgid "Current HP: {current_hp}/{max_hp}"
+msgstr "当前生命：{current_hp}/{max_hp}"
+
+msgid "Current enemy is not available."
+msgstr "当前敌人不可用。"
+
+msgid "Dark Prayer"
+msgstr "黑暗祈祷"
+
+msgid "Deal {value}"
+msgstr "造成 {value} 点伤害"
+
+msgid "Deck State\nDraw {draw_pile_count}\nDiscard {discard_pile_count}\nCharge Blocked {charge_blocked}\n{card_counts}"
+msgstr "牌堆状态\n抽牌堆 {draw_pile_count}\n弃牌堆 {discard_pile_count}\n蓄力阻断 {charge_blocked}\n{card_counts}"
+
+msgid "Deck choice cannot be submitted during phase '{phase}'."
+msgstr "在阶段 '{phase}' 中无法提交卡组选择。"
+
+msgid "Deck choice is not available during phase '{phase}'."
+msgstr "在阶段 '{phase}' 中没有可用的卡组选择。"
+
+msgid "Deck includes more copies than owned: {details}"
+msgstr "卡组中某些卡牌的数量超过持有数量：{details}"
+
+msgid "Deck must contain exactly {deck_size} cards, got {selected_count}."
+msgstr "卡组必须恰好包含 {deck_size} 张卡，当前为 {selected_count} 张。"
+
+msgid "Defeat"
+msgstr "失败"
+
+msgid "Defend"
+msgstr "防御"
+
+msgid "Defense"
+msgstr "防御"
+
+msgid "Drain Slash"
+msgstr "吸血斩"
+
+msgid "Effect"
+msgstr "效果"
+
+msgid "End: {player} | {enemy}"
+msgstr "结束：{player} | {enemy}"
+
+msgid "Enemy '{enemy_id}' does not define action '{action_id}'."
+msgstr "敌人 '{enemy_id}' 未定义动作 '{action_id}'。"
+
+msgid "Enemy '{enemy_id}' must have a positive total action weight."
+msgstr "敌人 '{enemy_id}' 的动作总权重必须为正数。"
+
+msgid "Enemy actions: {weight_text}"
+msgstr "敌方动作：{weight_text}"
+
+msgid "Enemy template to fight."
+msgstr "要对战的敌人模板。"
+
+msgid "Enter 1, 2, or 3: "
+msgstr "输入 1、2 或 3："
+
+msgid "Enter exactly {deck_size} card ids separated by spaces: "
+msgstr "输入恰好 {deck_size} 个以空格分隔的卡牌 id："
+
+msgid "Enter/A add • Enter/D/Backspace remove • Tab switch focus"
+msgstr "Enter/A 添加 • Enter/D/Backspace 移除 • Tab 切换焦点"
+
+msgid "Error: {error}"
+msgstr "错误：{error}"
+
+msgid "Fortify"
+msgstr "固守"
+
+msgid "Gain Strength {value}"
+msgstr "获得力量 {value}"
+
+msgid "Gain {value} armor"
+msgstr "获得 {value} 点护甲"
+
+msgid "Global RNG seed for the whole run."
+msgstr "整局流程使用的全局随机种子。"
+
+msgid "Guard"
+msgstr "守卫"
+
+msgid "Heal"
+msgstr "治疗"
+
+msgid "Heal {value}"
+msgstr "恢复 {value} 点生命"
+
+msgid "Heavy Strike"
+msgstr "重击"
+
+msgid "Hybrid"
+msgstr "混合"
+
+msgid "Invalid deck: {error}"
+msgstr "无效卡组：{error}"
+
+msgid "Invalid reward: enter 1, 2, or 3."
+msgstr "无效奖励：请输入 1、2 或 3。"
+
+msgid "Invalid reward: {error}"
+msgstr "无效奖励：{error}"
+
+msgid "Iron Wall"
+msgstr "铁壁"
+
+msgid "JSON file with optional role and scripted deck/reward choices."
+msgstr "包含可选职业和脚本化组牌/奖励选择的 JSON 文件。"
+
+msgid "Jab"
+msgstr "刺拳"
+
+msgid "Language to use for the current run."
+msgstr "当前运行使用的语言。"
+
+msgid "Leans on poison and attrition while sharing a few neutral staples."
+msgstr "依赖中毒与消耗战，同时共享少量中立核心卡。"
+
+msgid "Mend"
+msgstr "修补"
+
+msgid "Name"
+msgstr "名称"
+
+msgid "No"
+msgstr "否"
+
+msgid "No effect"
+msgstr "无效果"
+
+msgid "None"
+msgstr "无"
+
+msgid "Normal"
+msgstr "普通"
+
+msgid "Pick a role to initialize its starting collection and reward pool."
+msgstr "选择一个职业来初始化其起始收藏与奖励池。"
+
+msgid "Player"
+msgstr "玩家"
+
+msgid "Player begins charging {card_name} (1/{charge_turns})."
+msgstr "玩家开始为 {card_name} 蓄力（1/{charge_turns}）。"
+
+msgid "Player cannot act this turn."
+msgstr "玩家本回合无法行动。"
+
+msgid "Player continues charging {card_name} ({charge_progress}/{charge_turns})."
+msgstr "玩家继续为 {card_name} 蓄力（{charge_progress}/{charge_turns}）。"
+
+msgid "Player flips {card_name}."
+msgstr "玩家翻出了 {card_name}。"
+
+msgid "Player reshuffles discard pile into draw pile ({card_count} cards)."
+msgstr "玩家将弃牌堆洗回抽牌堆（{card_count} 张牌）。"
+
+msgid "Player resolves {card_name}."
+msgstr "玩家结算 {card_name}。"
+
+msgid "Player starting HP must be between 1 and {max_hp}; got {player_start_hp}."
+msgstr "玩家初始生命必须在 1 到 {max_hp} 之间；当前为 {player_start_hp}。"
+
+msgid "Poison"
+msgstr "中毒"
+
+msgid "Poison on {actor_name} wears off."
+msgstr "{actor_name} 身上的中毒消失了。"
+
+msgid "Priest"
+msgstr "祭司"
+
+msgid "Quit"
+msgstr "退出"
+
+msgid "RNG seed used for deck shuffling and enemy actions."
+msgstr "用于洗牌和敌方动作的随机种子。"
+
+msgid "Rally"
+msgstr "鼓舞"
+
+msgid "Recover"
+msgstr "恢复"
+
+msgid "Resolved"
+msgstr "已结算"
+
+msgid "Result: Player defeat."
+msgstr "结果：玩家战败。"
+
+msgid "Result: Player victory."
+msgstr "结果：玩家胜利。"
+
+msgid "Reward choice cannot be submitted during phase '{phase}'."
+msgstr "在阶段 '{phase}' 中无法提交奖励选择。"
+
+msgid "Reward choice is not available during phase '{phase}'."
+msgstr "在阶段 '{phase}' 中没有可用的奖励选择。"
+
+msgid "Reward choice must be one of: {valid}. Got {reward_choice}."
+msgstr "奖励选择必须是以下之一：{valid}。当前为 {reward_choice}。"
+
+msgid "Reward chosen: {card_name} [{card_id}]"
+msgstr "已选择奖励：{card_name} [{card_id}]"
+
+msgid "Reward options: {options}"
+msgstr "奖励选项：{options}"
+
+msgid "Role has not been selected yet."
+msgstr "尚未选择职业。"
+
+msgid "Role to preselect before entering the UI."
+msgstr "进入 UI 前预选的职业。"
+
+msgid "Role to start with."
+msgstr "起始职业。"
+
+msgid "Role whose starting deck and HP should be used."
+msgstr "用于起始卡组和生命值的职业。"
+
+msgid "Run Complete"
+msgstr "本局结束"
+
+msgid "Run a full rogue-like card game session."
+msgstr "运行一整局 Rogue-like 卡牌游戏。"
+
+msgid "Run a single rogue-like card battle simulation."
+msgstr "运行一场 Rogue-like 卡牌战斗模拟。"
+
+msgid "Run result is only available after the session ends."
+msgstr "只有在流程结束后才能获取本局结果。"
+
+msgid "Run result: Defeat on battle {battle_number}."
+msgstr "本局结果：在第 {battle_number} 场战斗中失败。"
+
+msgid "Run result: Victory."
+msgstr "本局结果：胜利。"
+
+msgid "Run start: {role_name} [{role_id}] {current_hp}/{max_hp} HP."
+msgstr "本局开始：{role_name} [{role_id}] {current_hp}/{max_hp} HP。"
+
+msgid "Run the Textual terminal UI for the rogue-like card game MVP."
+msgstr "运行该 Rogue-like 卡牌游戏 MVP 的 Textual 终端 UI。"
+
+msgid "Script file is not valid JSON: {script_path}"
+msgstr "脚本文件不是有效的 JSON：{script_path}"
+
+msgid "Script file not found: {script_path}"
+msgstr "未找到脚本文件：{script_path}"
+
+msgid "Script is missing a deck choice for battle {battle_number}."
+msgstr "脚本缺少第 {battle_number} 场战斗的卡组选择。"
+
+msgid "Script is missing a reward choice for battle {battle_number}."
+msgstr "脚本缺少第 {battle_number} 场战斗的奖励选择。"
+
+msgid "Script must define 'deck_choices'."
+msgstr "脚本必须定义 'deck_choices'。"
+
+msgid "Script must define 'reward_choices'."
+msgstr "脚本必须定义 'reward_choices'。"
+
+msgid "Script root must be a JSON object."
+msgstr "脚本根节点必须是 JSON 对象。"
+
+msgid "Seed: {seed}"
+msgstr "种子：{seed}"
+
+msgid "Shield Bash"
+msgstr "盾击"
+
+msgid "Shield Up"
+msgstr "举盾"
+
+msgid "Skill"
+msgstr "技能"
+
+msgid "Skipped"
+msgstr "跳过"
+
+msgid "Smite"
+msgstr "惩击"
+
+msgid "Start Battle"
+msgstr "开始战斗"
+
+msgid "Start Battle ({selected_count}/{deck_size})"
+msgstr "开始战斗（{selected_count}/{deck_size}）"
+
+msgid "Start: {player} | {enemy}"
+msgstr "开始：{player} | {enemy}"
+
+msgid "Starting collection: {collection}"
+msgstr "起始收藏：{collection}"
+
+msgid "Starting deck size: {deck_size} cards"
+msgstr "起始卡组大小：{deck_size} 张牌"
+
+msgid "Strike"
+msgstr "打击"
+
+msgid "Strength"
+msgstr "力量"
+
+msgid "Stun"
+msgstr "眩晕"
+
+msgid "Stunned"
+msgstr "已眩晕"
+
+msgid "Swing"
+msgstr "挥击"
+
+msgid "Textual MVP"
+msgstr "Textual MVP"
+
+msgid "Textual MVP - {role_name}"
+msgstr "Textual MVP - {role_name}"
+
+msgid "Toggle Language"
+msgstr "切换语言"
+
+msgid "Toxic Brew"
+msgstr "毒酿"
+
+msgid "Turn {turn}"
+msgstr "第 {turn} 回合"
+
+msgid "Type"
+msgstr "类型"
+
+msgid "Unknown card '{card_id}'. Expected one of: {valid_ids}"
+msgstr "未知卡牌 '{card_id}'。期望值之一：{valid_ids}"
+
+msgid "Unknown card ids in deck choice: {missing_text}"
+msgstr "卡组选择中包含未知卡牌 id：{missing_text}"
+
+msgid "Unknown card ids in deck: {missing_text}"
+msgstr "卡组中包含未知卡牌 id：{missing_text}"
+
+msgid "Unknown effect"
+msgstr "未知效果"
+
+msgid "Unknown enemy '{enemy_id}'. Expected one of: {valid_ids}"
+msgstr "未知敌人 '{enemy_id}'。期望值之一：{valid_ids}"
+
+msgid "Unknown reward card id: {reward_choice}"
+msgstr "未知奖励卡牌 id：{reward_choice}"
+
+msgid "Unknown role '{role_id}'. Expected one of: {valid_ids}"
+msgstr "未知职业 '{role_id}'。期望值之一：{valid_ids}"
+
+msgid "Unsupported effect kind: {kind}"
+msgstr "不支持的效果类型：{kind}"
+
+msgid "Utility"
+msgstr "功能"
+
+msgid "Validate all TOML-driven game content."
+msgstr "校验所有由 TOML 驱动的游戏内容。"
+
+msgid "Venom Cut"
+msgstr "毒刃"
+
+msgid "Victory"
+msgstr "胜利"
+
+msgid "Ward"
+msgstr "护佑"
+
+msgid "Yes"
+msgstr "是"
+
+msgid "armor {amount}"
+msgstr "护甲 {amount}"
+
+msgid "battle {battle_number}/{total_battles} ({battle_type})"
+msgstr "战斗 {battle_number}/{total_battles}（{battle_type}）"
+
+msgid "card '{card_id}' must belong to at least one pool."
+msgstr "卡牌 '{card_id}' 必须属于至少一个池。"
+
+msgid "card '{card_id}' references unknown pools {pool_ids}."
+msgstr "卡牌 '{card_id}' 引用了未知的池：{pool_ids}。"
+
+msgid "damage {amount}"
+msgstr "伤害 {amount}"
+
+msgid "heal {amount}"
+msgstr "治疗 {amount}"
+
+msgid "role '{role_id}' must expose at least one pool."
+msgstr "职业 '{role_id}' 必须暴露至少一个池。"
+
+msgid "role '{role_id}' references unknown card pools {pool_ids}."
+msgstr "职业 '{role_id}' 引用了未知的卡池：{pool_ids}。"
+
+msgid "{action_name} applies {label} {value} to {recipient_label} ({label} {previous}->{current})."
+msgstr "{action_name} 对 {recipient_label} 施加 {label} {value}（{label} {previous}->{current}）。"
+
+msgid "{action_name} deals {amount} damage to {recipient_label} (Armor {armor_before}->{armor_after}, HP {hp_before}->{hp_after})."
+msgstr "{action_name} 对 {recipient_label} 造成 {amount} 点伤害（护甲 {armor_before}->{armor_after}，生命 {hp_before}->{hp_after}）。"
+
+msgid "{action_name} grants {recipient_label} {gained} armor (Armor {armor_before}->{armor_after})."
+msgstr "{action_name} 为 {recipient_label} 提供 {gained} 点护甲（护甲 {armor_before}->{armor_after}）。"
+
+msgid "{action_name} heals {recipient_label} for {restored} HP (HP {hp_before}->{hp_after})."
+msgstr "{action_name} 为 {recipient_label} 恢复 {restored} 点生命（生命 {hp_before}->{hp_after}）。"
+
+msgid "{action_name} resolves."
+msgstr "{action_name} 结算完成。"
+
+msgid "{actor_name} cannot act at 0 HP."
+msgstr "{actor_name} 在 0 生命时无法行动。"
+
+msgid "{actor_name} is stunned and skips the action."
+msgstr "{actor_name} 被眩晕，跳过本次行动。"
+
+msgid "{actor_name} poison decreases to {remaining_poison}."
+msgstr "{actor_name} 的中毒降为 {remaining_poison}。"
+
+msgid "{actor_name} suffers {poison} poison damage (HP {hp_before}->{hp_after})."
+msgstr "{actor_name} 受到 {poison} 点中毒伤害（生命 {hp_before}->{hp_after}）。"
+
+msgid "{card_id} ({chosen_count} chosen, {owned_count} owned)"
+msgstr "{card_id}（已选 {chosen_count}，持有 {owned_count}）"
+
+msgid "{card_id}: {card_name} x{count}"
+msgstr "{card_id}: {card_name} x{count}"
+
+msgid "{card_name}\n{card_type} • {status}\nCharge {charge_progress}/{charge_turns}\n{effect_text}"
+msgstr "{card_name}\n{card_type} • {status}\n蓄力 {charge_progress}/{charge_turns}\n{effect_text}"
+
+msgid "{card_name} moves to discard pile."
+msgstr "{card_name} 进入弃牌堆。"
+
+msgid "{context} must be a non-empty string."
+msgstr "{context} 必须是非空字符串。"
+
+msgid "{context} must be an array of non-empty strings."
+msgstr "{context} 必须是由非空字符串组成的数组。"
+
+msgid "{context} must be an integer."
+msgstr "{context} 必须是整数。"
+
+msgid "{context} must be at least 0."
+msgstr "{context} 必须至少为 0。"
+
+msgid "{context} must be greater than 0."
+msgstr "{context} 必须大于 0。"
+
+msgid "{context}: actions must be an array of tables."
+msgstr "{context}：actions 必须是表数组。"
+
+msgid "{context}: apply_status requires a string status."
+msgstr "{context}：apply_status 需要字符串类型的 status。"
+
+msgid "{context}: cards must define at least one effect."
+msgstr "{context}：卡牌必须定义至少一个效果。"
+
+msgid "{context}: effects must be an array of tables."
+msgstr "{context}：effects 必须是表数组。"
+
+msgid "{context}: enemies must define at least one action."
+msgstr "{context}：敌人必须定义至少一个动作。"
+
+msgid "{context}: enemy actions must define at least one effect."
+msgstr "{context}：敌方动作必须定义至少一个效果。"
+
+msgid "{context}: only apply_status effects may define status."
+msgstr "{context}：只有 apply_status 效果可以定义 status。"
+
+msgid "{context}: unknown effect kind '{kind}'."
+msgstr "{context}：未知效果类型 '{kind}'。"
+
+msgid "{context}: unknown effect target '{target}'."
+msgstr "{context}：未知效果目标 '{target}'。"
+
+msgid "{context}: unknown status '{status}'."
+msgstr "{context}：未知状态 '{status}'。"
+
+msgid "{enemy_name}\nHP {hp}/{max_hp}\nArmor {armor}\nStatus {statuses}"
+msgstr "{enemy_name}\n生命 {hp}/{max_hp}\n护甲 {armor}\n状态 {statuses}"
+
+msgid "{enemy_name} is at 0 HP but still acts before the end-of-turn death check."
+msgstr "{enemy_name} 虽然生命已为 0，但仍会在回合结束死亡判定前行动。"
+
+msgid "{enemy_name} skips the action."
+msgstr "{enemy_name} 跳过了行动。"
+
+msgid "{enemy_name} uses {action_name}."
+msgstr "{enemy_name} 使用了 {action_name}。"
+
+msgid "{index}. {card_name}\n{card_type} • Charge {charge_turns}\n{effect_text}\nOwned {owned_count}"
+msgstr "{index}. {card_name}\n{card_type} • 蓄力 {charge_turns}\n{effect_text}\n持有 {owned_count}"
+
+msgid "{index}. {role_name}\nHP {starting_hp}/{max_hp}\n{description}"
+msgstr "{index}. {role_name}\n生命 {starting_hp}/{max_hp}\n{description}"
+
+msgid "{label} {value}"
+msgstr "{label} {value}"
+
+msgid "{name} HP {hp}/{max_hp}, Armor {armor}, Status {statuses}"
+msgstr "{name} 生命 {hp}/{max_hp}，护甲 {armor}，状态 {statuses}"
+
+msgid "{name} [{card_id}]"
+msgstr "{name} [{card_id}]"
+
+msgid "{name} x{count}"
+msgstr "{name} x{count}"
+
+msgid "{name} {weight}"
+msgstr "{name} {weight}"
+
+msgid "{outcome_text}\nRole {role_name} ({role_id})\nReached battle {final_battle_number}/{total_battles}\nFinal HP {final_hp}\nCollection {collection}"
+msgstr "{outcome_text}\n职业 {role_name} ({role_id})\n到达战斗 {final_battle_number}/{total_battles}\n最终生命 {final_hp}\n收藏 {collection}"
+
+msgid "{path}: cards must be an array of tables."
+msgstr "{path}：cards 必须是表数组。"
+
+msgid "{path}: cards[{index}] must be a table."
+msgstr "{path}：cards[{index}] 必须是表。"
+
+msgid "{path}: directory not found."
+msgstr "{path}：未找到目录。"
+
+msgid "{path}: duplicate card id '{card_id}'."
+msgstr "{path}：重复的卡牌 id '{card_id}'。"
+
+msgid "{path}: duplicate enemy id '{enemy_id}'."
+msgstr "{path}：重复的敌人 id '{enemy_id}'。"
+
+msgid "{path}: duplicate role id '{role_id}'."
+msgstr "{path}：重复的职业 id '{role_id}'。"
+
+msgid "{path}: enemies must be an array of tables."
+msgstr "{path}：enemies 必须是表数组。"
+
+msgid "{path}: enemies[{index}] must be a table."
+msgstr "{path}：enemies[{index}] 必须是表。"
+
+msgid "{path}: enemy '{enemy_id}' has duplicate action ids {action_ids}."
+msgstr "{path}：敌人 '{enemy_id}' 存在重复动作 id：{action_ids}。"
+
+msgid "{path}: enemy '{enemy_id}' must have positive total action weight."
+msgstr "{path}：敌人 '{enemy_id}' 的动作总权重必须为正数。"
+
+msgid "{path}: file not found."
+msgstr "{path}：未找到文件。"
+
+msgid "{path}: invalid TOML ({error})."
+msgstr "{path}：TOML 无效（{error}）。"
+
+msgid "{path}: role '{role_id}' cannot access cards {card_ids}."
+msgstr "{path}：职业 '{role_id}' 无法访问这些卡牌：{card_ids}。"
+
+msgid "{path}: role '{role_id}' has starting_hp above max_hp."
+msgstr "{path}：职业 '{role_id}' 的 starting_hp 高于 max_hp。"
+
+msgid "{path}: role '{role_id}' reward pool must contain at least {card_count} cards."
+msgstr "{path}：职业 '{role_id}' 的奖励池必须至少包含 {card_count} 张卡。"
+
+msgid "{path}: role '{role_id}' starting_collection references unknown cards {card_ids}."
+msgstr "{path}：职业 '{role_id}' 的 starting_collection 引用了未知卡牌：{card_ids}。"
+
+msgid "{path}: role '{role_id}' starting_deck must contain exactly {deck_size} cards."
+msgstr "{path}：职业 '{role_id}' 的 starting_deck 必须恰好包含 {deck_size} 张卡。"
+
+msgid "{path}: role '{role_id}' starting_deck references unknown cards {card_ids}."
+msgstr "{path}：职业 '{role_id}' 的 starting_deck 引用了未知卡牌：{card_ids}。"
+
+msgid "{path}: role '{role_id}' starting_deck uses more copies than owned for {card_ids}."
+msgstr "{path}：职业 '{role_id}' 的 starting_deck 对这些卡牌的使用数量超过持有数量：{card_ids}。"
+
+msgid "{path}: roles must be an array of tables."
+msgstr "{path}：roles 必须是表数组。"
+
+msgid "{path}: roles[{index}] must be a table."
+msgstr "{path}：roles[{index}] 必须是表。"
+
+msgid "{path}: root must be a TOML table."
+msgstr "{path}：根节点必须是 TOML 表。"
+
+msgid "{path}: total_battle_count must equal normal_battle_count + 1."
+msgstr "{path}：total_battle_count 必须等于 normal_battle_count + 1。"
+
+msgid "{path}: unknown boss_enemy_id '{enemy_id}'."
+msgstr "{path}：未知的 boss_enemy_id '{enemy_id}'。"
+
+msgid "{path}: unknown default_role_id '{role_id}'."
+msgstr "{path}：未知的 default_role_id '{role_id}'。"
+
+msgid "{path}: unknown normal_enemy_ids {enemy_ids}."
+msgstr "{path}：未知的 normal_enemy_ids {enemy_ids}。"
+
+msgid "{role_name}\nBattle {battle_number}/{total_battles}\nHP {hp}/{max_hp}\nArmor {armor}\nStatus {statuses}"
+msgstr "{role_name}\n战斗 {battle_number}/{total_battles}\n生命 {hp}/{max_hp}\n护甲 {armor}\n状态 {statuses}"
+
+msgid "{role_name} ({role_id})\nBattle {battle_number}/{total_battles} vs {enemy_name} ({enemy_id}) ({battle_type})\nHP {current_hp}/{max_hp} | Deck {selected_count}/{deck_size}"
+msgstr "{role_name} ({role_id})\n战斗 {battle_number}/{total_battles} 对阵 {enemy_name} ({enemy_id})（{battle_type}）\n生命 {current_hp}/{max_hp} | 卡组 {selected_count}/{deck_size}"
+
+msgid "{role_name} ({role_id})\nHP {current_hp}/{max_hp}\nBattle {battle_number} cleared against {enemy_name}\nNext: {next_text}"
+msgstr "{role_name} ({role_id})\n生命 {current_hp}/{max_hp}\n已通过对抗 {enemy_name} 的第 {battle_number} 场战斗\n下一步：{next_text}"

@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from auto_card.battle_reporting import build_active_card_snapshot
 from auto_card.content import CARDS
+from auto_card.i18n import _
 from auto_card.models import (
     ActiveCardSnapshot,
     CardDefinition,
@@ -85,7 +86,7 @@ def resolve_player_phase(
             active_card = build_active_card_snapshot(
                 card=charge_state.card,
                 charge_progress=charge_state.progress,
-                status_text="Stunned",
+                status_key="stunned",
             )
         return PlayerPhaseResult(
             next_charge_state=charge_state,
@@ -96,19 +97,27 @@ def resolve_player_phase(
         charge_state.progress += 1
         card = charge_state.card
         log_lines.append(
-            f"Player continues charging {card.name} "
-            f"({charge_state.progress}/{card.charge_turns})."
+            _(
+                "Player continues charging {card_name} "
+                "({charge_progress}/{charge_turns})."
+            ).format(
+                card_name=_(card.name),
+                charge_progress=charge_state.progress,
+                charge_turns=card.charge_turns,
+            )
         )
         if charge_state.progress == card.charge_turns:
             resolve_card(card=card, player=player, enemy=enemy, log_lines=log_lines)
             discard_pile.append(card.id)
-            log_lines.append(f"{card.name} moves to discard pile.")
+            log_lines.append(
+                _("{card_name} moves to discard pile.").format(card_name=_(card.name))
+            )
             return PlayerPhaseResult(
                 next_charge_state=None,
                 active_card=build_active_card_snapshot(
                     card=card,
                     charge_progress=charge_state.progress,
-                    status_text="Resolved",
+                    status_key="resolved",
                 ),
             )
         return PlayerPhaseResult(
@@ -116,7 +125,7 @@ def resolve_player_phase(
             active_card=build_active_card_snapshot(
                 card=card,
                 charge_progress=charge_state.progress,
-                status_text="Charging",
+                status_key="charging",
             ),
         )
 
@@ -127,32 +136,35 @@ def resolve_player_phase(
         log_lines=log_lines,
     )
     if card is None:
-        log_lines.append("Player cannot act this turn.")
+        log_lines.append(_("Player cannot act this turn."))
         return PlayerPhaseResult(next_charge_state=None, active_card=None)
 
-    log_lines.append(f"Player flips {card.name}.")
+    log_lines.append(_("Player flips {card_name}.").format(card_name=_(card.name)))
     if card.is_charge_card:
         log_lines.append(
-            f"Player begins charging {card.name} (1/{card.charge_turns})."
+            _("Player begins charging {card_name} (1/{charge_turns}).").format(
+                card_name=_(card.name),
+                charge_turns=card.charge_turns,
+            )
         )
         return PlayerPhaseResult(
             next_charge_state=ChargeState(card=card),
             active_card=build_active_card_snapshot(
                 card=card,
                 charge_progress=1,
-                status_text="Charging",
+                status_key="charging",
             ),
         )
 
     resolve_card(card=card, player=player, enemy=enemy, log_lines=log_lines)
     discard_pile.append(card.id)
-    log_lines.append(f"{card.name} moves to discard pile.")
+    log_lines.append(_("{card_name} moves to discard pile.").format(card_name=_(card.name)))
     return PlayerPhaseResult(
         next_charge_state=None,
         active_card=build_active_card_snapshot(
             card=card,
             charge_progress=1,
-            status_text="Resolved",
+            status_key="resolved",
         ),
     )
 
@@ -168,14 +180,20 @@ def resolve_enemy_phase(
     if not _can_take_action(combatant=enemy, actor_name=enemy.name, log_lines=log_lines):
         return EnemyPhaseResult(
             action_id="skipped",
-            action_name="Skipped",
-            summary=f"{enemy.name} skips the action.",
+            action_name=_("Skipped"),
+            summary=_("{enemy_name} skips the action.").format(enemy_name=enemy.name),
         )
 
     action_definition = get_enemy_action_definition(enemy_definition, action)
-    log_lines.append(f"{enemy.name} uses {action_definition.name}.")
+    action_name = _(action_definition.name)
+    log_lines.append(
+        _("{enemy_name} uses {action_name}.").format(
+            enemy_name=enemy.name,
+            action_name=action_name,
+        )
+    )
     summary = resolve_effects(
-        action_name=action_definition.name,
+        action_name=action_name,
         effects=action_definition.effects,
         source=enemy,
         target=player,
@@ -185,7 +203,7 @@ def resolve_enemy_phase(
     )
     return EnemyPhaseResult(
         action_id=action_definition.id,
-        action_name=action_definition.name,
+        action_name=action_name,
         summary=summary,
     )
 
@@ -197,9 +215,10 @@ def resolve_card(
     enemy: Combatant,
     log_lines: list[str],
 ) -> None:
-    log_lines.append(f"Player resolves {card.name}.")
+    action_name = _(card.name)
+    log_lines.append(_("Player resolves {card_name}.").format(card_name=action_name))
     resolve_effects(
-        action_name=card.name,
+        action_name=action_name,
         effects=card.effects,
         source=player,
         target=enemy,
@@ -228,44 +247,87 @@ def resolve_effects(
             amount = effect.value + source.statuses.get("strength", 0)
             report = apply_damage(recipient, amount)
             log_lines.append(
-                f"{action_name} deals {amount} damage to {recipient_label} "
-                f"(Armor {report.armor_before}->{report.armor_after}, "
-                f"HP {report.hp_before}->{report.hp_after})."
+                _(
+                    "{action_name} deals {amount} damage to {recipient_label} "
+                    "(Armor {armor_before}->{armor_after}, "
+                    "HP {hp_before}->{hp_after})."
+                ).format(
+                    action_name=action_name,
+                    amount=amount,
+                    recipient_label=recipient_label,
+                    armor_before=report.armor_before,
+                    armor_after=report.armor_after,
+                    hp_before=report.hp_before,
+                    hp_after=report.hp_after,
+                )
             )
-            summary_parts.append(f"damage {amount}")
+            summary_parts.append(_("damage {amount}").format(amount=amount))
             continue
 
         if effect.kind == "armor":
             report = gain_armor(recipient, effect.value)
             log_lines.append(
-                f"{action_name} grants {recipient_label} {report.gained} armor "
-                f"(Armor {report.armor_before}->{report.armor_after})."
+                _(
+                    "{action_name} grants {recipient_label} {gained} armor "
+                    "(Armor {armor_before}->{armor_after})."
+                ).format(
+                    action_name=action_name,
+                    recipient_label=recipient_label,
+                    gained=report.gained,
+                    armor_before=report.armor_before,
+                    armor_after=report.armor_after,
+                )
             )
-            summary_parts.append(f"armor {report.gained}")
+            summary_parts.append(_("armor {amount}").format(amount=report.gained))
             continue
 
         if effect.kind == "heal":
             report = heal_combatant(recipient, effect.value)
             log_lines.append(
-                f"{action_name} heals {recipient_label} for {report.restored} HP "
-                f"(HP {report.hp_before}->{report.hp_after})."
+                _(
+                    "{action_name} heals {recipient_label} for {restored} HP "
+                    "(HP {hp_before}->{hp_after})."
+                ).format(
+                    action_name=action_name,
+                    recipient_label=recipient_label,
+                    restored=report.restored,
+                    hp_before=report.hp_before,
+                    hp_after=report.hp_after,
+                )
             )
-            summary_parts.append(f"heal {report.restored}")
+            summary_parts.append(_("heal {amount}").format(amount=report.restored))
             continue
 
         if effect.kind == "apply_status" and effect.status is not None:
             report = apply_status(recipient, effect.status, effect.value)
-            label = STATUS_LABELS[effect.status]
+            label = _(STATUS_LABELS[effect.status])
             log_lines.append(
-                f"{action_name} applies {label} {effect.value} to {recipient_label} "
-                f"({label} {report.previous}->{report.current})."
+                _(
+                    "{action_name} applies {label} {value} to {recipient_label} "
+                    "({label} {previous}->{current})."
+                ).format(
+                    action_name=action_name,
+                    label=label,
+                    value=effect.value,
+                    recipient_label=recipient_label,
+                    previous=report.previous,
+                    current=report.current,
+                )
             )
-            summary_parts.append(f"{label.lower()} {report.current}")
+            summary_parts.append(
+                _("{label} {value}").format(label=label.lower(), value=report.current)
+            )
             continue
 
-        raise ValueError(f"Unsupported effect kind: {effect.kind}")
+        raise ValueError(
+            _("Unsupported effect kind: {kind}").format(kind=effect.kind)
+        )
 
-    return ", ".join(summary_parts) if summary_parts else f"{action_name} resolves."
+    return (
+        ", ".join(summary_parts)
+        if summary_parts
+        else _("{action_name} resolves.").format(action_name=action_name)
+    )
 
 
 def choose_enemy_action(
@@ -275,7 +337,9 @@ def choose_enemy_action(
     total_weight = sum(action.weight for action in enemy_definition.actions)
     if total_weight <= 0:
         raise ValueError(
-            f"Enemy '{enemy_definition.id}' must have a positive total action weight."
+            _(
+                "Enemy '{enemy_id}' must have a positive total action weight."
+            ).format(enemy_id=enemy_definition.id)
         )
 
     roll = rng.randint(1, total_weight)
@@ -296,7 +360,10 @@ def get_enemy_action_definition(
         if action.id == action_id:
             return action
     raise ValueError(
-        f"Enemy '{enemy_definition.id}' does not define action '{action_id}'."
+        _("Enemy '{enemy_id}' does not define action '{action_id}'.").format(
+            enemy_id=enemy_definition.id,
+            action_id=action_id,
+        )
     )
 
 
@@ -312,7 +379,9 @@ def draw_next_card(
         discard_pile.clear()
         rng.shuffle(draw_pile)
         log_lines.append(
-            f"Player reshuffles discard pile into draw pile ({len(draw_pile)} cards)."
+            _(
+                "Player reshuffles discard pile into draw pile ({card_count} cards)."
+            ).format(card_count=len(draw_pile))
         )
 
     if not draw_pile:
@@ -390,13 +459,19 @@ def validate_deck(deck_ids: Sequence[str]) -> None:
     missing = sorted({card_id for card_id in deck_ids if card_id not in CARDS})
     if missing:
         missing_text = ", ".join(missing)
-        raise ValueError(f"Unknown card ids in deck: {missing_text}")
+        raise ValueError(
+            _("Unknown card ids in deck: {missing_text}").format(
+                missing_text=missing_text
+            )
+        )
 
 
 def validate_player_start_hp(player_start_hp: int, max_hp: int) -> None:
     if not 1 <= player_start_hp <= max_hp:
         raise ValueError(
-            f"Player starting HP must be between 1 and {max_hp}; got {player_start_hp}."
+            _(
+                "Player starting HP must be between 1 and {max_hp}; got {player_start_hp}."
+            ).format(max_hp=max_hp, player_start_hp=player_start_hp)
         )
 
 
@@ -411,16 +486,27 @@ def _can_take_action(
         hp_before = combatant.hp
         combatant.hp = max(0, combatant.hp - poison)
         log_lines.append(
-            f"{actor_name} suffers {poison} poison damage "
-            f"(HP {hp_before}->{combatant.hp})."
+            _("{actor_name} suffers {poison} poison damage (HP {hp_before}->{hp_after}).").format(
+                actor_name=actor_name,
+                poison=poison,
+                hp_before=hp_before,
+                hp_after=combatant.hp,
+            )
         )
         remaining_poison = poison - 1
         if remaining_poison > 0:
             combatant.statuses["poison"] = remaining_poison
-            log_lines.append(f"{actor_name} poison decreases to {remaining_poison}.")
+            log_lines.append(
+                _("{actor_name} poison decreases to {remaining_poison}.").format(
+                    actor_name=actor_name,
+                    remaining_poison=remaining_poison,
+                )
+            )
         else:
             combatant.statuses.pop("poison", None)
-            log_lines.append(f"Poison on {actor_name} wears off.")
+            log_lines.append(
+                _("Poison on {actor_name} wears off.").format(actor_name=actor_name)
+            )
 
     stun = combatant.statuses.get("stun", 0)
     if stun > 0:
@@ -429,11 +515,17 @@ def _can_take_action(
             combatant.statuses["stun"] = remaining_stun
         else:
             combatant.statuses.pop("stun", None)
-        log_lines.append(f"{actor_name} is stunned and skips the action.")
+        log_lines.append(
+            _("{actor_name} is stunned and skips the action.").format(
+                actor_name=actor_name
+            )
+        )
         return False
 
     if combatant.hp <= 0:
-        log_lines.append(f"{actor_name} cannot act at 0 HP.")
+        log_lines.append(
+            _("{actor_name} cannot act at 0 HP.").format(actor_name=actor_name)
+        )
         return False
 
     return True

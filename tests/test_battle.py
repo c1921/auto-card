@@ -275,11 +275,13 @@ def test_run_battle_replay_matches_final_result_and_turn_frames() -> None:
     assert len(replay.frames) == result.turns
     assert replay.opening_log_lines == result.log_lines[:4]
     assert replay.frames[0].active_card is not None
-    assert replay.frames[0].active_card.name == "Heavy Strike"
+    assert replay.frames[0].active_card.card_id == "heavy_strike"
     assert replay.frames[0].active_card.charge_progress == 1
+    assert replay.frames[0].active_card.status_key == "charging"
     assert replay.frames[0].is_charge_blocked is True
     assert replay.frames[2].active_card is not None
     assert replay.frames[2].active_card.charge_progress == 3
+    assert replay.frames[2].active_card.status_key == "resolved"
     assert replay.frames[-1].log_lines[-1] == "Result: Player victory."
 
 

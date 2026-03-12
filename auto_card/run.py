@@ -15,6 +15,7 @@ from auto_card.content import (
     get_role_definition,
     get_role_reward_card_ids,
 )
+from auto_card.i18n import _
 from auto_card.models import (
     BattleReplay,
     EnemyDefinition,
@@ -32,6 +33,7 @@ from auto_card.run_support import (
     format_card_list as _format_card_list,
     record_line as _record_line,
 )
+from auto_card.presentation import format_battle_type, get_enemy_name, get_role_name
 
 DeckChooser = Callable[["DeckChoiceRequest"], Sequence[str]]
 RewardChooser = Callable[["RewardChoiceRequest"], str]
@@ -90,11 +92,20 @@ class RunSession:
         self._final_battle_number = 0
 
         self._record_line(
-            f"Run start: {self._role.name} [{self._role.id}] {self._current_hp}/{self._role.max_hp} HP."
+            _(
+                "Run start: {role_name} [{role_id}] {current_hp}/{max_hp} HP."
+            ).format(
+                role_name=get_role_name(self._role),
+                role_id=self._role.id,
+                current_hp=self._current_hp,
+                max_hp=self._role.max_hp,
+            )
         )
-        self._record_line(f"Seed: {seed}")
+        self._record_line(_("Seed: {seed}").format(seed=seed))
         self._record_line(
-            f"Starting collection: {format_card_counts(self._collection)}"
+            _("Starting collection: {collection}").format(
+                collection=format_card_counts(self._collection)
+            )
         )
         self._prepare_current_battle()
 
@@ -129,7 +140,7 @@ class RunSession:
     @property
     def current_enemy(self) -> EnemyDefinition:
         if self._current_enemy is None:
-            raise RuntimeError("Current enemy is not available.")
+            raise RuntimeError(_("Current enemy is not available."))
         return self._current_enemy
 
     @property
@@ -139,7 +150,7 @@ class RunSession:
     @property
     def current_battle_replay(self) -> BattleReplay:
         if self._current_battle_replay is None:
-            raise RuntimeError("Battle replay is not available.")
+            raise RuntimeError(_("Battle replay is not available."))
         return self._current_battle_replay
 
     @property
@@ -166,7 +177,9 @@ class RunSession:
     def get_deck_choice_request(self) -> DeckChoiceRequest:
         if self._phase != "deck_choice":
             raise RuntimeError(
-                f"Deck choice is not available during phase '{self._phase}'."
+                _("Deck choice is not available during phase '{phase}'.").format(
+                    phase=self._phase
+                )
             )
         return DeckChoiceRequest(
             battle_number=self._battle_number,
@@ -182,7 +195,9 @@ class RunSession:
     def submit_deck_choice(self, deck_ids: Sequence[str]) -> BattleReplay:
         if self._phase != "deck_choice":
             raise RuntimeError(
-                f"Deck choice cannot be submitted during phase '{self._phase}'."
+                _("Deck choice cannot be submitted during phase '{phase}'.").format(
+                    phase=self._phase
+                )
             )
 
         normalized_deck = validate_deck_choice(
@@ -190,10 +205,16 @@ class RunSession:
             collection=self._current_collection_view,
         )
         self._current_deck_ids = normalized_deck
-        self._record_line(f"Chosen deck: {format_card_counts(normalized_deck)}")
+        self._record_line(
+            _("Chosen deck: {deck}").format(deck=format_card_counts(normalized_deck))
+        )
 
         self._current_battle_seed = self._rng.randint(0, 2**32 - 1)
-        self._record_line(f"Battle seed: {self._current_battle_seed}")
+        self._record_line(
+            _("Battle seed: {battle_seed}").format(
+                battle_seed=self._current_battle_seed
+            )
+        )
 
         replay = run_battle_replay(
             deck_ids=normalized_deck,
@@ -212,7 +233,9 @@ class RunSession:
     def complete_battle_replay(self) -> None:
         if self._phase != "battle_replay":
             raise RuntimeError(
-                f"Battle replay cannot be completed during phase '{self._phase}'."
+                _(
+                    "Battle replay cannot be completed during phase '{phase}'."
+                ).format(phase=self._phase)
             )
 
         replay = self.current_battle_replay
@@ -222,7 +245,9 @@ class RunSession:
             self._append_current_battle_record()
             self._record_line("")
             self._record_line(
-                f"Run result: Defeat on battle {self._battle_number}."
+                _("Run result: Defeat on battle {battle_number}.").format(
+                    battle_number=self._battle_number
+                )
             )
             self._finish_run(outcome="defeat")
             return
@@ -230,7 +255,7 @@ class RunSession:
         if self._current_battle_type == "boss":
             self._append_current_battle_record()
             self._record_line("")
-            self._record_line("Run result: Victory.")
+            self._record_line(_("Run result: Victory."))
             self._finish_run(outcome="victory")
             return
 
@@ -239,7 +264,9 @@ class RunSession:
     def get_reward_choice_request(self) -> RewardChoiceRequest:
         if self._phase != "reward_choice":
             raise RuntimeError(
-                f"Reward choice is not available during phase '{self._phase}'."
+                _("Reward choice is not available during phase '{phase}'.").format(
+                    phase=self._phase
+                )
             )
         return RewardChoiceRequest(
             battle_number=self._battle_number,
@@ -254,7 +281,9 @@ class RunSession:
     def submit_reward_choice(self, reward_choice: str) -> None:
         if self._phase != "reward_choice":
             raise RuntimeError(
-                f"Reward choice cannot be submitted during phase '{self._phase}'."
+                _("Reward choice cannot be submitted during phase '{phase}'.").format(
+                    phase=self._phase
+                )
             )
 
         validated_reward = validate_reward_choice(
@@ -263,10 +292,15 @@ class RunSession:
         )
         self._collection.append(validated_reward)
         self._record_line(
-            f"Reward chosen: {CARDS[validated_reward].name} [{validated_reward}]"
+            _("Reward chosen: {card_name} [{card_id}]").format(
+                card_name=_(CARDS[validated_reward].name),
+                card_id=validated_reward,
+            )
         )
         self._record_line(
-            f"Collection now: {format_card_counts(self._collection)}"
+            _("Collection now: {collection}").format(
+                collection=format_card_counts(self._collection)
+            )
         )
 
         self._append_current_battle_record(
@@ -283,7 +317,9 @@ class RunSession:
 
     def build_result(self) -> RunResult:
         if self._phase != "finished" or self._outcome is None:
-            raise RuntimeError("Run result is only available after the session ends.")
+            raise RuntimeError(
+                _("Run result is only available after the session ends.")
+            )
 
         return RunResult(
             outcome=self._outcome,
@@ -317,12 +353,14 @@ class RunSession:
 
     def _enter_reward_choice(self) -> None:
         reward_pool = get_role_reward_card_ids(self._role.id)
-        reward_options = tuple(
-            self._rng.sample(reward_pool, k=REWARD_OPTION_COUNT)
-        )
+        reward_options = tuple(self._rng.sample(reward_pool, k=REWARD_OPTION_COUNT))
         self._current_reward_options = reward_options
         self._reward_collection_view = canonicalize_card_ids(self._collection)
-        self._record_line(f"Reward options: {format_card_list(reward_options)}")
+        self._record_line(
+            _("Reward options: {options}").format(
+                options=format_card_list(reward_options)
+            )
+        )
         self._phase = "reward_choice"
 
     def _finish_run(self, *, outcome: str) -> None:
@@ -342,17 +380,27 @@ class RunSession:
 
         self._record_line("")
         self._record_line(
-            (
-                f"Battle {self._battle_number}/{TOTAL_BATTLE_COUNT}: "
-                f"{self.current_enemy.name} [{self.current_enemy.id}] "
-                f"({self._current_battle_type})."
+            _(
+                "Battle {battle_number}/{total_battles}: "
+                "{enemy_name} [{enemy_id}] ({battle_type})."
+            ).format(
+                battle_number=self._battle_number,
+                total_battles=TOTAL_BATTLE_COUNT,
+                enemy_name=get_enemy_name(self.current_enemy),
+                enemy_id=self.current_enemy.id,
+                battle_type=format_battle_type(self._current_battle_type),
             )
         )
         self._record_line(
-            f"Current HP: {self._current_hp}/{self._role.max_hp}"
+            _("Current HP: {current_hp}/{max_hp}").format(
+                current_hp=self._current_hp,
+                max_hp=self._role.max_hp,
+            )
         )
         self._record_line(
-            f"Collection: {format_card_counts(self._current_collection_view)}"
+            _("Collection: {collection}").format(
+                collection=format_card_counts(self._current_collection_view)
+            )
         )
 
     def _record_line(self, line: str) -> None:
@@ -388,13 +436,21 @@ def validate_deck_choice(
     normalized_deck = tuple(deck_ids)
     if len(normalized_deck) != RUN_DECK_SIZE:
         raise ValueError(
-            f"Deck must contain exactly {RUN_DECK_SIZE} cards, "
-            f"got {len(normalized_deck)}."
+            _(
+                "Deck must contain exactly {deck_size} cards, got {selected_count}."
+            ).format(
+                deck_size=RUN_DECK_SIZE,
+                selected_count=len(normalized_deck),
+            )
         )
 
     missing = sorted({card_id for card_id in normalized_deck if card_id not in CARDS})
     if missing:
-        raise ValueError(f"Unknown card ids in deck choice: {', '.join(missing)}")
+        raise ValueError(
+            _("Unknown card ids in deck choice: {missing_text}").format(
+                missing_text=", ".join(missing)
+            )
+        )
 
     owned_counts = Counter(collection)
     deck_counts = Counter(normalized_deck)
@@ -409,13 +465,18 @@ def validate_deck_choice(
     ]
     if overspent:
         details = ", ".join(
-            (
-                f"{card_id} ({chosen_count} chosen, "
-                f"{owned_count} owned)"
+            _("{card_id} ({chosen_count} chosen, {owned_count} owned)").format(
+                card_id=card_id,
+                chosen_count=chosen_count,
+                owned_count=owned_count,
             )
             for card_id, chosen_count, owned_count in sorted(overspent)
         )
-        raise ValueError(f"Deck includes more copies than owned: {details}")
+        raise ValueError(
+            _("Deck includes more copies than owned: {details}").format(
+                details=details
+            )
+        )
 
     return normalized_deck
 
@@ -424,11 +485,18 @@ def validate_reward_choice(
     *, reward_choice: str, options: Sequence[str]
 ) -> str:
     if reward_choice not in CARDS:
-        raise ValueError(f"Unknown reward card id: {reward_choice}")
+        raise ValueError(
+            _("Unknown reward card id: {reward_choice}").format(
+                reward_choice=reward_choice
+            )
+        )
     if reward_choice not in options:
         valid = ", ".join(options)
         raise ValueError(
-            f"Reward choice must be one of: {valid}. Got {reward_choice}."
+            _("Reward choice must be one of: {valid}. Got {reward_choice}.").format(
+                valid=valid,
+                reward_choice=reward_choice,
+            )
         )
     return reward_choice
 

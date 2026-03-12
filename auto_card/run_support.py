@@ -10,7 +10,14 @@ from auto_card.content import (
     NORMAL_ENEMY_IDS,
     get_enemy_definition,
 )
-from auto_card.models import BattleResult, EnemyDefinition, RunBattleRecord, RunBattleType
+from auto_card.i18n import _
+from auto_card.models import (
+    BattleResult,
+    CardDefinition,
+    EnemyDefinition,
+    RunBattleRecord,
+    RunBattleType,
+)
 
 LogEmitter = Callable[[str], None]
 
@@ -49,11 +56,14 @@ def canonicalize_card_ids(card_ids: Sequence[str]) -> tuple[str, ...]:
 def format_card_counts(
     card_ids: Sequence[str],
     *,
-    cards: dict[str, object],
+    cards: dict[str, CardDefinition],
 ) -> str:
     counts = Counter(card_ids)
     parts = [
-        f"{cards[card_id].name} x{counts[card_id]}"
+        _("{name} x{count}").format(
+            name=_(cards[card_id].name),
+            count=counts[card_id],
+        )
         for card_id in CARD_ORDER
         if counts.get(card_id, 0)
     ]
@@ -63,9 +73,12 @@ def format_card_counts(
 def format_card_list(
     card_ids: Sequence[str],
     *,
-    cards: dict[str, object],
+    cards: dict[str, CardDefinition],
 ) -> str:
-    return ", ".join(f"{cards[card_id].name} [{card_id}]" for card_id in card_ids)
+    return ", ".join(
+        _("{name} [{card_id}]").format(name=_(cards[card_id].name), card_id=card_id)
+        for card_id in card_ids
+    )
 
 
 def choose_enemy(*, battle_type: RunBattleType, rng: random.Random) -> EnemyDefinition:

@@ -116,7 +116,12 @@ def build_expected_collection_rows(counts: Counter[str]) -> list[tuple[str, ...]
 
 def test_textual_role_selection_initializes_session() -> None:
     async def scenario() -> None:
-        app = TextualCardApp(seed=19, battle_delay=0.001, end_delay=0.001)
+        app = TextualCardApp(
+            seed=19,
+            language="en",
+            battle_delay=0.001,
+            end_delay=0.001,
+        )
         async with app.run_test() as pilot:
             assert type(app.screen).__name__ == "RoleSelectScreen"
             first_button = app.screen.query_one("#role-1", Button)
@@ -137,6 +142,7 @@ def test_textual_deck_builder_adds_and_removes_cards() -> None:
         app = TextualCardApp(
             seed=19,
             role_id="adventurer",
+            language="en",
             battle_delay=0.001,
             end_delay=0.001,
         )
@@ -192,6 +198,7 @@ def test_textual_run_flows_from_battle_to_reward_to_next_deck_choice() -> None:
         app = TextualCardApp(
             seed=19,
             role_id="adventurer",
+            language="en",
             battle_delay=0.001,
             end_delay=0.001,
         )
@@ -234,5 +241,32 @@ def test_textual_run_flows_from_battle_to_reward_to_next_deck_choice() -> None:
                 ("Recover", "1", "1", "Heal 3"),
             ]
             assert start_button.disabled is False
+
+    asyncio.run(scenario())
+
+
+def test_textual_language_toggle_updates_current_screen() -> None:
+    async def scenario() -> None:
+        app = TextualCardApp(
+            seed=19,
+            role_id="adventurer",
+            language="en",
+            battle_delay=0.001,
+            end_delay=0.001,
+        )
+        async with app.run_test() as pilot:
+            screen_title = app.screen.query_one("#screen-title", Static)
+            start_button = app.screen.query_one("#start-battle", Button)
+            deck_summary = app.screen.query_one("#deck-summary", Static)
+
+            assert "Battle Deck Builder" in str(screen_title.render())
+            assert str(start_button.label) == "Start Battle (0/10)"
+
+            await pilot.press("l")
+            await pilot.pause(0.01)
+
+            assert "战斗组牌" in str(screen_title.render())
+            assert str(start_button.label) == "开始战斗（0/10）"
+            assert "卡组" in str(deck_summary.render())
 
     asyncio.run(scenario())

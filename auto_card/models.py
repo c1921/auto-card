@@ -120,12 +120,9 @@ class BattleResult:
 @dataclass(frozen=True)
 class ActiveCardSnapshot:
     card_id: str
-    name: str
-    card_type: str
     charge_turns: int
     charge_progress: int
-    effect_text: str
-    status_text: str
+    status_key: str
 
 
 @dataclass(frozen=True)

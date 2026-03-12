@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -18,12 +19,17 @@ ALCHEMIST = get_role_definition("alchemist")
 
 
 def run_cli(*args: str) -> subprocess.CompletedProcess[str]:
+    return run_cli_raw("--lang", "en", *args)
+
+
+def run_cli_raw(*args: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, "main.py", *args],
         cwd=PROJECT_ROOT,
         capture_output=True,
         text=True,
         check=False,
+        env=env,
     )
 
 
@@ -143,16 +149,39 @@ def test_cli_accepts_ui_subcommand(monkeypatch: pytest.MonkeyPatch) -> None:
     observed: dict[str, int | bool | None] = {}
 
     class FakeApp:
-        def __init__(self, *, seed: int, role_id: str | None) -> None:
+        def __init__(
+            self,
+            *,
+            seed: int,
+            role_id: str | None,
+            language: str | None,
+        ) -> None:
             observed["seed"] = seed
             observed["role_id"] = role_id
+            observed["language"] = language
 
         def run(self) -> None:
             observed["ran"] = True
 
     monkeypatch.setattr(ui_module, "TextualCardApp", FakeApp)
 
-    result = main(["ui", "--seed", "7", "--role", "adventurer"])
+    result = main(["ui", "--seed", "7", "--role", "adventurer", "--lang", "en"])
 
     assert result == 0
-    assert observed == {"seed": 7, "role_id": "adventurer", "ran": True}
+    assert observed == {
+        "seed": 7,
+        "role_id": "adventurer",
+        "language": "en",
+        "ran": True,
+    }
+
+
+def test_cli_help_translates_to_chinese() -> None:
+    env = os.environ | {"LANG": "en_US.UTF-8"}
+
+    result = run_cli_raw("--lang", "zh_CN", "--help", env=env)
+
+    assert result.returncode == 0
+    assert "用法：" in result.stdout
+    assert "运行一整局 Rogue-like 卡牌游戏。" in result.stdout
+    assert "当前运行使用的语言。" in result.stdout

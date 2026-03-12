@@ -2,14 +2,33 @@ from __future__ import annotations
 
 from collections import Counter
 
-from auto_card.content import CARD_ORDER, CARD_ORDER_INDEX, CARDS, RUN_DECK_SIZE
+from auto_card.content import (
+    CARD_ORDER,
+    CARD_ORDER_INDEX,
+    CARDS,
+    RUN_DECK_SIZE,
+    get_role_definition,
+)
+from auto_card.i18n import _
 from auto_card.models import (
     ActiveCardSnapshot,
     CombatantSnapshot,
     RoleDefinition,
     RunResult,
 )
-from auto_card.presentation import format_card_effect, format_statuses, get_card_type
+from auto_card.presentation import (
+    format_active_card_status,
+    format_battle_type,
+    format_bool,
+    format_card_effect,
+    format_outcome,
+    format_statuses,
+    get_card_name,
+    get_card_type,
+    get_enemy_name,
+    get_role_description,
+    get_role_name,
+)
 from auto_card.run import DeckChoiceRequest, RewardChoiceRequest, format_card_counts
 
 
@@ -32,7 +51,7 @@ def build_collection_table_rows(
         row_ids.append(card_id)
         rows.append(
             (
-                card.name,
+                get_card_name(card),
                 get_card_type(card),
                 str(card.charge_turns),
                 str(available_count),
@@ -59,7 +78,7 @@ def build_deck_table_rows(
         row_ids.append(card_id)
         rows.append(
             (
-                card.name,
+                get_card_name(card),
                 str(deck_counts[card_id]),
                 str(card.charge_turns),
                 format_card_effect(card),
@@ -74,19 +93,34 @@ def build_deck_summary_text(
     *,
     selected_count: int,
 ) -> str:
-    return (
-        f"{request.role.name} ({request.role.id})\n"
-        f"Battle {request.battle_number}/{request.total_battles} "
-        f"vs {request.enemy.name} ({request.enemy.id}) ({request.battle_type})\n"
-        f"HP {request.current_hp}/{request.max_hp} | "
-        f"Deck {selected_count}/{RUN_DECK_SIZE}"
+    return _(
+        "{role_name} ({role_id})\n"
+        "Battle {battle_number}/{total_battles} "
+        "vs {enemy_name} ({enemy_id}) ({battle_type})\n"
+        "HP {current_hp}/{max_hp} | "
+        "Deck {selected_count}/{deck_size}"
+    ).format(
+        role_name=get_role_name(request.role),
+        role_id=request.role.id,
+        battle_number=request.battle_number,
+        total_battles=request.total_battles,
+        enemy_name=get_enemy_name(request.enemy),
+        enemy_id=request.enemy.id,
+        battle_type=format_battle_type(request.battle_type),
+        current_hp=request.current_hp,
+        max_hp=request.max_hp,
+        selected_count=selected_count,
+        deck_size=RUN_DECK_SIZE,
     )
 
 
 def build_start_battle_label(selected_count: int) -> str:
     if selected_count == RUN_DECK_SIZE:
-        return "Start Battle"
-    return f"Start Battle ({selected_count}/{RUN_DECK_SIZE})"
+        return _("Start Battle")
+    return _("Start Battle ({selected_count}/{deck_size})").format(
+        selected_count=selected_count,
+        deck_size=RUN_DECK_SIZE,
+    )
 
 
 def build_player_panel_text(
@@ -96,33 +130,57 @@ def build_player_panel_text(
     total_battles: int,
     role: RoleDefinition,
 ) -> str:
-    return (
-        f"{role.name}\n"
-        f"Battle {battle_number}/{total_battles}\n"
-        f"HP {player.hp}/{player.max_hp}\n"
-        f"Armor {player.armor}\n"
-        f"Status {format_statuses(player.statuses)}"
+    return _(
+        "{role_name}\n"
+        "Battle {battle_number}/{total_battles}\n"
+        "HP {hp}/{max_hp}\n"
+        "Armor {armor}\n"
+        "Status {statuses}"
+    ).format(
+        role_name=get_role_name(role),
+        battle_number=battle_number,
+        total_battles=total_battles,
+        hp=player.hp,
+        max_hp=player.max_hp,
+        armor=player.armor,
+        statuses=format_statuses(player.statuses),
     )
 
 
-def build_enemy_panel_text(enemy: CombatantSnapshot) -> str:
-    return (
-        f"{enemy.name}\n"
-        f"HP {enemy.hp}/{enemy.max_hp}\n"
-        f"Armor {enemy.armor}\n"
-        f"Status {format_statuses(enemy.statuses)}"
+def build_enemy_panel_text(enemy: CombatantSnapshot, *, enemy_name: str) -> str:
+    return _(
+        "{enemy_name}\n"
+        "HP {hp}/{max_hp}\n"
+        "Armor {armor}\n"
+        "Status {statuses}"
+    ).format(
+        enemy_name=_(enemy_name),
+        hp=enemy.hp,
+        max_hp=enemy.max_hp,
+        armor=enemy.armor,
+        statuses=format_statuses(enemy.statuses),
     )
 
 
 def build_current_card_text(active_card: ActiveCardSnapshot | None) -> str:
     if active_card is None:
-        return "Current Card\nWaiting for the next draw."
+        return _("Current Card\nWaiting for the next draw.")
 
+    card = CARDS[active_card.card_id]
     return (
-        f"{active_card.name}\n"
-        f"{active_card.card_type} • {active_card.status_text}\n"
-        f"Charge {active_card.charge_progress}/{active_card.charge_turns}\n"
-        f"{active_card.effect_text}"
+        _(
+            "{card_name}\n"
+            "{card_type} • {status}\n"
+            "Charge {charge_progress}/{charge_turns}\n"
+            "{effect_text}"
+        ).format(
+            card_name=get_card_name(card),
+            card_type=get_card_type(card),
+            status=format_active_card_status(active_card.status_key),
+            charge_progress=active_card.charge_progress,
+            charge_turns=active_card.charge_turns,
+            effect_text=format_card_effect(card),
+        )
     )
 
 
@@ -133,12 +191,17 @@ def build_deck_panel_text(
     is_charge_blocked: bool,
     deck_ids: tuple[str, ...],
 ) -> str:
-    return (
+    return _(
         "Deck State\n"
-        f"Draw {draw_pile_count}\n"
-        f"Discard {discard_pile_count}\n"
-        f"Charge Blocked {'Yes' if is_charge_blocked else 'No'}\n"
-        f"{format_card_counts(deck_ids)}"
+        "Draw {draw_pile_count}\n"
+        "Discard {discard_pile_count}\n"
+        "Charge Blocked {charge_blocked}\n"
+        "{card_counts}"
+    ).format(
+        draw_pile_count=draw_pile_count,
+        discard_pile_count=discard_pile_count,
+        charge_blocked=format_bool(is_charge_blocked),
+        card_counts=format_card_counts(deck_ids),
     )
 
 
@@ -149,12 +212,26 @@ def build_reward_summary_text(
     total_battles: int,
     next_battle_type: str | None,
 ) -> str:
-    return (
-        f"{request.role.name} ({request.role.id})\n"
-        f"HP {request.current_hp}/{request.max_hp}\n"
-        f"Battle {request.battle_number} cleared against {request.enemy.name}\n"
-        f"Next: battle {next_battle_number}/{total_battles} "
-        f"({next_battle_type})"
+    next_text = _("Complete")
+    if next_battle_number is not None and next_battle_type is not None:
+        next_text = _("battle {battle_number}/{total_battles} ({battle_type})").format(
+            battle_number=next_battle_number,
+            total_battles=total_battles,
+            battle_type=format_battle_type(next_battle_type),
+        )
+    return _(
+        "{role_name} ({role_id})\n"
+        "HP {current_hp}/{max_hp}\n"
+        "Battle {battle_number} cleared against {enemy_name}\n"
+        "Next: {next_text}"
+    ).format(
+        role_name=get_role_name(request.role),
+        role_id=request.role.id,
+        current_hp=request.current_hp,
+        max_hp=request.max_hp,
+        battle_number=request.battle_number,
+        enemy_name=get_enemy_name(request.enemy),
+        next_text=next_text,
     )
 
 
@@ -165,11 +242,18 @@ def build_reward_button_label(
     owned_count: int,
 ) -> str:
     card = CARDS[card_id]
-    return (
-        f"{index}. {card.name}\n"
-        f"{get_card_type(card)} • Charge {card.charge_turns}\n"
-        f"{format_card_effect(card)}\n"
-        f"Owned {owned_count}"
+    return _(
+        "{index}. {card_name}\n"
+        "{card_type} • Charge {charge_turns}\n"
+        "{effect_text}\n"
+        "Owned {owned_count}"
+    ).format(
+        index=index,
+        card_name=get_card_name(card),
+        card_type=get_card_type(card),
+        charge_turns=card.charge_turns,
+        effect_text=format_card_effect(card),
+        owned_count=owned_count,
     )
 
 
@@ -178,13 +262,20 @@ def build_result_summary_text(
     *,
     total_battles: int,
 ) -> str:
-    outcome_text = "Victory" if result.outcome == "victory" else "Defeat"
-    return (
-        f"{outcome_text}\n"
-        f"Role {result.role_id}\n"
-        f"Reached battle {result.final_battle_number}/{total_battles}\n"
-        f"Final HP {result.final_hp}\n"
-        f"Collection {format_card_counts(result.final_collection)}"
+    return _(
+        "{outcome_text}\n"
+        "Role {role_name} ({role_id})\n"
+        "Reached battle {final_battle_number}/{total_battles}\n"
+        "Final HP {final_hp}\n"
+        "Collection {collection}"
+    ).format(
+        outcome_text=format_outcome(result.outcome),
+        role_name=get_role_name(get_role_definition(result.role_id)),
+        role_id=result.role_id,
+        final_battle_number=result.final_battle_number,
+        total_battles=total_battles,
+        final_hp=result.final_hp,
+        collection=format_card_counts(result.final_collection),
     )
 
 
@@ -193,8 +284,10 @@ def build_role_button_label(
     index: int,
     role: RoleDefinition,
 ) -> str:
-    return (
-        f"{index}. {role.name}\n"
-        f"HP {role.starting_hp}/{role.max_hp}\n"
-        f"{role.description}"
+    return _("{index}. {role_name}\nHP {starting_hp}/{max_hp}\n{description}").format(
+        index=index,
+        role_name=get_role_name(role),
+        starting_hp=role.starting_hp,
+        max_hp=role.max_hp,
+        description=get_role_description(role),
     )

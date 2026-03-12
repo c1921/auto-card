@@ -8,6 +8,7 @@ from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
 from textual.widgets import Button, Static
 
+from auto_card.i18n import _
 from auto_card.ui.helpers import (
     build_reward_button_label,
     build_reward_summary_text,
@@ -16,7 +17,7 @@ from auto_card.ui.helpers import (
 
 class RewardScreen(Screen[None]):
     def compose(self) -> ComposeResult:
-        yield Static("Choose One Reward", id="screen-title")
+        yield Static(id="screen-title")
         with Vertical(id="reward-layout"):
             yield Static(id="reward-summary", classes="panel")
             with Horizontal(id="reward-options"):
@@ -24,7 +25,11 @@ class RewardScreen(Screen[None]):
                 yield Button(id="reward-2", classes="reward-card", variant="primary")
                 yield Button(id="reward-3", classes="reward-card", variant="primary")
 
+    def on_mount(self) -> None:
+        self.refresh_text()
+
     def on_screen_resume(self) -> None:
+        self.refresh_text()
         request = self.app.session.get_reward_choice_request()
         owned_counts = Counter(request.collection)
         self.query_one("#reward-summary", Static).update(
@@ -58,3 +63,6 @@ class RewardScreen(Screen[None]):
     def _choose(self, option_index: int) -> None:
         request = self.app.session.get_reward_choice_request()
         self.app.choose_reward(request.options[option_index - 1])
+
+    def refresh_text(self) -> None:
+        self.query_one("#screen-title", Static).update(_("Choose One Reward"))

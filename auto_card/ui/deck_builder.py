@@ -9,6 +9,7 @@ from textual.screen import Screen
 from textual.widgets import Button, DataTable, Static
 
 from auto_card.content import RUN_DECK_SIZE
+from auto_card.i18n import _
 from auto_card.ui.helpers import (
     build_collection_table_rows,
     build_deck_summary_text,
@@ -25,27 +26,23 @@ class DeckBuilderScreen(Screen[None]):
         self._deck_row_ids: list[str] = []
 
     def compose(self) -> ComposeResult:
-        yield Static("Battle Deck Builder", id="screen-title")
+        yield Static(id="screen-title")
         with Horizontal(id="deck-layout"):
             with Vertical(classes="panel"):
-                yield Static("Collection", classes="section-title")
+                yield Static(id="collection-title", classes="section-title")
                 yield DataTable(id="collection-table")
             with Vertical(classes="panel"):
-                yield Static("Battle Deck", classes="section-title")
+                yield Static(id="deck-title", classes="section-title")
                 yield DataTable(id="deck-table")
         with Horizontal(id="deck-footer", classes="panel footer-panel"):
             yield Static(id="deck-summary")
             yield Static(id="deck-hint")
-            yield Button("Start Battle", id="start-battle", variant="success")
+            yield Button(id="start-battle", variant="success")
 
     def on_mount(self) -> None:
-        collection_table = self.query_one("#collection-table", DataTable)
-        collection_table.cursor_type = "row"
-        collection_table.add_columns("Name", "Type", "Charge", "Available", "Effect")
-
-        deck_table = self.query_one("#deck-table", DataTable)
-        deck_table.cursor_type = "row"
-        deck_table.add_columns("Name", "Count", "Charge", "Effect")
+        self.query_one("#collection-table", DataTable).cursor_type = "row"
+        self.query_one("#deck-table", DataTable).cursor_type = "row"
+        self.refresh_text()
 
     def on_screen_resume(self) -> None:
         self._refresh()
@@ -83,6 +80,21 @@ class DeckBuilderScreen(Screen[None]):
             return
         self.app.start_battle(tuple(self._selected_deck))
 
+    def refresh_text(self) -> None:
+        self.query_one("#screen-title", Static).update(_("Battle Deck Builder"))
+        self.query_one("#collection-title", Static).update(_("Collection"))
+        self.query_one("#deck-title", Static).update(_("Battle Deck"))
+        self.query_one("#deck-hint", Static).update(
+            _("Enter/A add • Enter/D/Backspace remove • Tab switch focus")
+        )
+        self.query_one("#start-battle", Button).label = build_start_battle_label(
+            len(self._selected_deck)
+        )
+        self._configure_tables()
+        if self.app._session is None:
+            return
+        self._refresh()
+    
     def _refresh(self) -> None:
         request = self.app.session.get_deck_choice_request()
 
@@ -125,7 +137,7 @@ class DeckBuilderScreen(Screen[None]):
             build_deck_summary_text(request, selected_count=selected_count)
         )
         self.query_one("#deck-hint", Static).update(
-            "Enter/A add • Enter/D/Backspace remove • Tab switch focus"
+            _("Enter/A add • Enter/D/Backspace remove • Tab switch focus")
         )
 
         start_button = self.query_one("#start-battle", Button)
@@ -186,3 +198,18 @@ class DeckBuilderScreen(Screen[None]):
             table.move_cursor(row=row_ids.index(selected_row_id))
             return
         table.move_cursor(row=min(previous_row, len(row_ids) - 1))
+
+    def _configure_tables(self) -> None:
+        collection_table = self.query_one("#collection-table", DataTable)
+        collection_table.clear(columns=True)
+        collection_table.add_columns(
+            _("Name"),
+            _("Type"),
+            _("Charge"),
+            _("Available"),
+            _("Effect"),
+        )
+
+        deck_table = self.query_one("#deck-table", DataTable)
+        deck_table.clear(columns=True)
+        deck_table.add_columns(_("Name"), _("Count"), _("Charge"), _("Effect"))
